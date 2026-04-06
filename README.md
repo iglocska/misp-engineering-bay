@@ -27,15 +27,16 @@ See the [Object Template Creator README](misp-object-template-creator/README.md)
 
 **Path:** [`misp-galaxy-editor/`](misp-galaxy-editor/)
 
-A Python/Flask web application and REST API for creating, editing, validating, and exporting MISP galaxy definitions and their associated clusters. Supports both simple galaxies and matrix-style kill chain galaxies (like ATT&CK) with a drag-and-drop matrix editor.
+A Python/Flask web application for creating, editing, validating, and exporting MISP galaxy definitions and their associated cluster collections. Supports both simple galaxies and matrix-style kill chain galaxies (like ATT&CK) with a drag-and-drop matrix editor. Runs in public mode (export zip only) or private mode (persist directly to the misp-galaxy repository).
 
 Key features:
-- Unified editor for galaxy definitions and clusters in a single interface
-- Matrix editor with drag-and-drop for kill chain galaxies (multiple scopes/tabs)
-- Cluster values editor with search, pagination, freeform meta fields, and relationships
-- Browse, load, and modify any of the 112+ existing MISP galaxies
-- Full REST API with bundle-based galaxy+cluster management
-- Interactive API documentation via Swagger UI
+- Unified editor — galaxy metadata is entered once and shared across both the galaxy definition and cluster collection files
+- Cluster editor with search, pagination, freeform meta fields (80+ known keys with autocomplete), and relationship management
+- Matrix editor with drag-and-drop for kill chain galaxies (multiple scopes/tabs, Ctrl+drag for multi-phase assignment)
+- Browse, load, clone, and modify any of the 112+ existing MISP galaxies
+- Export as zip matching the misp-galaxy repository structure (`galaxies/` + `clusters/`)
+- Real-time validation with live JSON preview
+- Public/private mode — public for authoring and export, private for direct repository writes
 - Light and dark themes
 
 See the [Galaxy Editor README](misp-galaxy-editor/README.md) for installation and usage instructions.
