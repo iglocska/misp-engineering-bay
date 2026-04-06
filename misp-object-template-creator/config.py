@@ -7,16 +7,20 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # Load settings from config.json (not exposed via API/UI)
 # ---------------------------------------------------------------------------
 
+# config.json is git-ignored. Copy config.json.default to config.json to customise.
 _CONFIG_FILE = os.path.join(BASE_DIR, "config.json")
+_CONFIG_DEFAULT = os.path.join(BASE_DIR, "config.json.default")
 
 _defaults = {
     "mode": "public",  # "public" or "private"
 }
 
 _file_config = {}
-if os.path.isfile(_CONFIG_FILE):
-    with open(_CONFIG_FILE) as _f:
-        _file_config = json.load(_f)
+for _path in (_CONFIG_FILE, _CONFIG_DEFAULT):
+    if os.path.isfile(_path):
+        with open(_path) as _f:
+            _file_config = json.load(_f)
+        break
 
 
 def _cfg(key: str) -> str:

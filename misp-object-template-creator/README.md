@@ -50,8 +50,23 @@ python3 -m venv venv
 
 All settings can be overridden via environment variables:
 
+Copy the default configuration file and edit as needed:
+
+```bash
+cp config.json.default config.json
+```
+
+`config.json` is git-ignored so your local settings won't be committed. Available options:
+
+| Key | Default | Description |
+|-----|---------|-------------|
+| `mode` | `"public"` | `"public"` — save to output/ only. `"private"` — also allows persisting directly to the misp-objects repo. |
+
+Environment variables override `config.json`:
+
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `MODE` | `public` | Same as `config.json` `mode` |
 | `MISP_OBJECTS_PATH` | `../misp-objects` | Path to the misp-objects repository |
 | `OUTPUT_PATH` | `./output` | Where user-created templates are saved |
 | `HOST` | `127.0.0.1` | Bind address |
