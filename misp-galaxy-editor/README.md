@@ -27,7 +27,7 @@ Each MISP galaxy consists of two paired files: a **galaxy definition** (metadata
 
 ```bash
 # Clone the repo with submodules (required — schema files live in misp-galaxy/)
-git clone --recurse-submodules <repo-url>
+git clone --recurse-submodules https://github.com/MISP/misp-engineering-bay.git
 cd misp-engineering-bay/misp-galaxy-editor
 
 # If you cloned without --recurse-submodules, fetch them now:
@@ -93,7 +93,7 @@ Verify before continuing: `systemctl --user show-environment` should print outpu
 **Step 3 — Clone and install as the service user:**
 
 ```bash
-git clone --recurse-submodules <repo-url>
+git clone --recurse-submodules https://github.com/MISP/misp-engineering-bay.git
 cd misp-engineering-bay/misp-galaxy-editor
 ./install-service.sh
 ```

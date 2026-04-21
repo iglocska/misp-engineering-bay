@@ -60,7 +60,7 @@ misp-engineering-bay/
 Clone the repository with submodules:
 
 ```bash
-git clone --recurse-submodules https://github.com/<org>/misp-engineering-bay.git
+git clone --recurse-submodules https://github.com/MISP/misp-engineering-bay.git
 cd misp-engineering-bay
 ```
 

@@ -22,7 +22,7 @@ A web application and REST API for creating, editing, validating, and exporting 
 
 ```bash
 # Clone the repo with submodules (required — schema files live in misp-objects/)
-git clone --recurse-submodules <repo-url>
+git clone --recurse-submodules https://github.com/MISP/misp-engineering-bay.git
 cd misp-engineering-bay/misp-object-template-creator
 
 # If you cloned without --recurse-submodules, fetch them now:
@@ -88,7 +88,7 @@ Verify before continuing: `systemctl --user show-environment` should print outpu
 **Step 3 — Clone and install as the service user:**
 
 ```bash
-git clone --recurse-submodules <repo-url>
+git clone --recurse-submodules https://github.com/MISP/misp-engineering-bay.git
 cd misp-engineering-bay/misp-object-template-creator
 ./install-service.sh
 ```
