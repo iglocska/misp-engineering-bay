@@ -1,3 +1,8 @@
 {
-  "mode": "public"
+  "mode": "public",
+  "https": {
+    "enabled": false,
+    "cert_file": "",
+    "key_file": ""
+  }
 }

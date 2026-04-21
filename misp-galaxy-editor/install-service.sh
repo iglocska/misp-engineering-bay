@@ -28,7 +28,7 @@ TEMPLATE="$SCRIPT_DIR/systemd/${SERVICE_NAME}.service.template"
 UNIT_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/systemd/user"
 UNIT_PATH="$UNIT_DIR/${SERVICE_NAME}.service"
 
-HOST="${HOST:-127.0.0.1}"
+HOST="${HOST:-0.0.0.0}"
 PORT="${PORT:-5051}"
 WORKERS="${WORKERS:-2}"
 
@@ -45,6 +45,13 @@ if [ ! -x "$SCRIPT_DIR/venv/bin/gunicorn" ]; then
         python3 -m venv "$SCRIPT_DIR/venv"
     fi
     "$SCRIPT_DIR/venv/bin/pip" install -q -r "$SCRIPT_DIR/requirements.txt"
+fi
+
+# Seed config.json from the defaults if missing, so the user has a file to
+# edit for runtime settings (mode, https, ...).
+if [ ! -f "$SCRIPT_DIR/config.json" ] && [ -f "$SCRIPT_DIR/config.json.default" ]; then
+    cp "$SCRIPT_DIR/config.json.default" "$SCRIPT_DIR/config.json"
+    echo "Created $SCRIPT_DIR/config.json from config.json.default — edit it to enable HTTPS, change mode, etc."
 fi
 
 mkdir -p "$UNIT_DIR"

@@ -99,10 +99,10 @@ This will:
 - Drop it into `~/.config/systemd/user/misp-object-template-creator.service`
 - `daemon-reload`, `enable`, and `start` the service
 
-The service binds to `127.0.0.1:5050` by default (2 workers). Override via env vars at install time:
+The service binds to `0.0.0.0:5050` by default (2 workers) so it's reachable from other hosts on the network. The application has no built-in authentication — put it behind a firewall, VPN, or a reverse proxy if you don't want it world-accessible. To restrict to loopback or change port/workers, override at install time:
 
 ```bash
-HOST=0.0.0.0 PORT=5050 WORKERS=4 ./install-service.sh
+HOST=127.0.0.1 PORT=5050 WORKERS=4 ./install-service.sh
 ```
 
 **Manage the service** (still as the `misp-engineering-bay` user):
@@ -113,6 +113,95 @@ systemctl --user restart misp-object-template-creator
 systemctl --user stop    misp-object-template-creator
 journalctl   --user -u   misp-object-template-creator -f
 ```
+
+### Enabling HTTPS
+
+The service serves plain HTTP by default. Pick one of the two options below depending on whether you already have a certificate or want one provisioned automatically.
+
+#### Option 1 — Use an existing certificate (TLS terminated at gunicorn)
+
+Use this when you already have a certificate + key file on disk (self-signed, corporate CA, purchased cert, a cert from your own ACME client, etc). TLS is configured in `config.json` and picked up by `gunicorn.conf.py` at service startup — no need to re-run `install-service.sh` when you enable, disable, or rotate the cert.
+
+Edit `config.json` (created from `config.json.default` on first install) and fill in the `https` block:
+
+```json
+{
+  "mode": "public",
+  "https": {
+    "enabled": true,
+    "cert_file": "/etc/ssl/certs/misp-object-template-creator.crt",
+    "key_file":  "/etc/ssl/private/misp-object-template-creator.key"
+  }
+}
+```
+
+Then restart the service to pick up the change:
+
+```bash
+systemctl --user restart misp-object-template-creator
+```
+
+Verify:
+
+```bash
+ss -ltnp | grep 5050              # gunicorn still listening
+curl -kI https://<host>:5050/     # -k accepts self-signed during the smoke test
+```
+
+If the cert or key paths are wrong or unreadable, the service will fail to start — check `journalctl --user -u misp-object-template-creator -n 50` for the exact error.
+
+Caveats:
+
+- **Readability.** Both files must be readable by the `misp-engineering-bay` user. `/etc/ssl/private` is typically root-only; either relocate the key to a path that user can read (e.g. `/home/misp-engineering-bay/tls/`), or grant access with `setfacl -m u:misp-engineering-bay:r /etc/ssl/private/misp-object-template-creator.key`.
+- **Privileged ports.** A user service cannot bind to ports below 1024. Keep the port at 5050 (or any high port), or use Option 2 / a reverse proxy to terminate on :443.
+- **Renewal.** You're responsible for rotating the cert and running `systemctl --user restart misp-object-template-creator` afterwards — gunicorn won't pick up a new cert without a reload.
+
+#### Option 2 — Automatic Let's Encrypt via Caddy (reverse proxy)
+
+Use this when you have a public DNS name pointing at the host and want certificates issued and renewed automatically. Caddy is the simplest route — it provisions and auto-renews LE certs out of the box. In this setup gunicorn keeps serving HTTP on loopback and Caddy handles TLS on :443.
+
+**Prerequisites:** a public DNS `A`/`AAAA` record pointing at the host, and ports `80` + `443` reachable from the internet (LE uses HTTP-01 challenges by default).
+
+**Step 1 — Bind the service to loopback only** (Caddy becomes the public entrypoint; binding to `0.0.0.0` would expose gunicorn directly alongside it):
+
+```bash
+HOST=127.0.0.1 PORT=5050 ./install-service.sh
+```
+
+**Step 2 — Install Caddy** (as root, on Debian/Ubuntu — see [caddyserver.com/docs/install](https://caddyserver.com/docs/install) for other distros):
+
+```bash
+sudo apt install -y debian-keyring debian-archive-keyring apt-transport-https curl
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
+  | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
+  | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+sudo apt update && sudo apt install -y caddy
+```
+
+**Step 3 — Configure the reverse proxy.** Edit `/etc/caddy/Caddyfile`:
+
+```caddy
+object-template-creator.example.com {
+    reverse_proxy 127.0.0.1:5050
+}
+```
+
+Replace `object-template-creator.example.com` with your actual hostname. Reload Caddy:
+
+```bash
+sudo systemctl reload caddy
+```
+
+On the first HTTPS request Caddy will obtain a Let's Encrypt certificate and auto-renew it thereafter (certs live under `/var/lib/caddy/.local/share/caddy/certificates/`).
+
+Verify:
+
+```bash
+curl -I https://object-template-creator.example.com/
+```
+
+If issuance fails, check `sudo journalctl -u caddy -n 100`. Common causes are DNS not yet propagated, port 80/443 blocked by a firewall, or LE rate limits (use the staging CA while iterating: add `acme_ca https://acme-staging-v02.api.letsencrypt.org/directory` to the Caddy site block).
 
 ## Configuration
 
@@ -129,6 +218,9 @@ cp config.json.default config.json
 | Key | Default | Description |
 |-----|---------|-------------|
 | `mode` | `"public"` | `"public"` — save to output/ only. `"private"` — also allows persisting directly to the misp-objects repo. |
+| `https.enabled` | `false` | When `true`, the systemd service serves HTTPS. See [Enabling HTTPS](#enabling-https). |
+| `https.cert_file` | `""` | Absolute path to the PEM certificate (required when `https.enabled` is `true`). |
+| `https.key_file` | `""` | Absolute path to the PEM private key (required when `https.enabled` is `true`). |
 
 Environment variables override `config.json`:
 
@@ -210,6 +302,7 @@ misp-object-template-creator/
 ├── template_store.py      # Template file I/O
 ├── run.sh                 # Quick-start script (creates venv, runs app)
 ├── install-service.sh     # Install as a systemd user service (gunicorn)
+├── gunicorn.conf.py       # Gunicorn config (reads TLS settings from config.json)
 ├── systemd/               # Service unit template
 ├── requirements.txt       # Python dependencies
 ├── data/
