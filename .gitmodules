@@ -1,6 +1,6 @@
 [submodule "misp-objects"]
 	path = misp-objects
-	url = git@github.com:MISP/misp-objects.git
+	url = https://github.com/MISP/misp-objects.git
 [submodule "MISP-galaxy"]
 	path = misp-galaxy
 	url = https://github.com/MISP/MISP-galaxy
