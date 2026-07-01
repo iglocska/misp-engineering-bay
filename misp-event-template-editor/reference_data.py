@@ -92,6 +92,14 @@ def list_object_templates() -> list[dict]:
     return out
 
 
+def object_template_version(uuid: str) -> int | None:
+    """Installed version of an object template (misp-objects ships one row per
+    object), or None if the uuid is not present. Used by the semantic check
+    `object_field.object_template.minimum_version`."""
+    meta = _objects().get(uuid)
+    return meta["version"] if meta else None
+
+
 def get_object_template(uuid: str) -> dict | None:
     """Full object template incl. its relations, for the per-relation override list."""
     meta = _objects().get(uuid)
@@ -272,6 +280,33 @@ def get_galaxy_clusters(galaxy_type: str) -> list[dict]:
         })
     clusters.sort(key=lambda c: c["value"].lower())
     return clusters
+
+
+# ---------------------------------------------------------------------------
+# Bundled event-template library (misp-event-templates submodule)
+# ---------------------------------------------------------------------------
+
+def list_library_templates() -> list[dict]:
+    """Summary of the bundled library templates (slug, name, uuid, ...), used for
+    browse and for slug/name/uuid uniqueness checks at save/persist time."""
+    out: list[dict] = []
+    root = config.LIBRARY_TEMPLATES_DIR
+    if not os.path.isdir(root):
+        return out
+    for slug in sorted(os.listdir(root)):
+        data = _read_json(os.path.join(root, slug, "definition.json"))
+        if not isinstance(data, dict):
+            continue
+        lm = data.get("library_metadata") or {}
+        out.append({
+            "slug": slug,
+            "name": data.get("name", slug),
+            "uuid": data.get("uuid", ""),
+            "description": data.get("description", ""),
+            "tags": lm.get("tags", []),
+            "source": "library",
+        })
+    return out
 
 
 # ---------------------------------------------------------------------------
