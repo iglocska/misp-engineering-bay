@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Editor — MISP Event Template Editor{% endblock %}
+{% block content %}
+<section class="editor-shell">
+  <header class="page-header">
+    <h1>Event Template Editor</h1>
+    <p class="muted">
+      Author, validate, preview, and export MISP event templates
+      (<code>event-template-v1</code>). Mode: <strong>{{ mode }}</strong>.
+    </p>
+  </header>
+  <div class="placeholder-panel">
+    <p>Scaffold in place. The builder canvas, element property editors,
+       <code>event_defaults</code> panel, and live preview are under construction
+       (see the project PRD checklist).</p>
+  </div>
+</section>
+{% endblock %}
