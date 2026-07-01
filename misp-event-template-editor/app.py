@@ -8,6 +8,7 @@ from flask import Flask, jsonify, render_template, request
 
 import config
 import reference_data
+import validator
 from describe_types import get_describe_types
 
 app = Flask(__name__)
@@ -96,6 +97,18 @@ def api_galaxy_clusters():
         "type": galaxy_type,
         "clusters": reference_data.get_galaxy_clusters(galaxy_type),
     })
+
+
+# ---------------------------------------------------------------------------
+# API — validation (draft-permissive; always 200, errors in the body; PRD D8)
+# ---------------------------------------------------------------------------
+
+@app.route("/api/templates/validate", methods=["POST"])
+def api_validate_template():
+    definition = request.get_json(silent=True)
+    if definition is None:
+        return jsonify({"error": "Request body must be valid JSON"}), 400
+    return jsonify(validator.validate_template(definition).to_dict())
 
 
 # ---------------------------------------------------------------------------
