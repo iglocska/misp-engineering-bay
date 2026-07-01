@@ -85,8 +85,9 @@ function renderElementEditor(el, sections) {
         }));
     }
     if (el.type === 'text_block') {
-        rows.push(field('textarea', 'content', 'Content (markdown)', el.content || '', {
-            tip: 'Static markdown shown to the user — not an input.',
+        rows.push(field('textarea', 'content', 'Content (Markdown)', el.content || '', {
+            rows: 6,
+            tip: 'Static Markdown rendered inline in the user form — it is not an input the user fills in.',
         }));
     }
     if (el.type === 'object_reference') {
@@ -95,9 +96,10 @@ function renderElementEditor(el, sections) {
         }));
     }
     if (meta.help) {
-        rows.push(field('textarea', 'help', 'Help', el.help || '', {
+        rows.push(field('textarea', 'help', 'Help (Markdown)', el.help || '', {
             optional: true,
-            tip: 'Optional helper text shown beneath the field.',
+            rows: 3,
+            tip: 'Optional Markdown helper text shown beneath the field in the user form.',
         }));
     }
     if (meta.parent) {
@@ -124,8 +126,9 @@ function field(kind, path, label, value, opts = {}) {
         ? ` <span class="tooltip-trigger" data-tooltip="${escapeHtml(opts.tip)}">&#9432;</span>`
         : '';
     const optAttr = opts.optional ? ' data-optional="1"' : '';
+    const rows = opts.rows || 2;
     const control = kind === 'textarea'
-        ? `<textarea class="form-input form-textarea" rows="2" data-path="${escapeHtml(path)}"${optAttr}>${escapeHtml(value)}</textarea>`
+        ? `<textarea class="form-input form-textarea" rows="${rows}" data-path="${escapeHtml(path)}"${optAttr}>${escapeHtml(value)}</textarea>`
         : `<input type="text" class="form-input" data-path="${escapeHtml(path)}"${optAttr} value="${escapeHtml(value)}">`;
     return `
         <div class="form-group">
