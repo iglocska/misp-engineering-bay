@@ -58,6 +58,16 @@ const REF_GALAXY_TYPES = '/api/galaxy-types';
 function loadGalaxyTypes() { return refGet(REF_GALAXY_TYPES); }
 function galaxyTypesNow() { return refPeek(REF_GALAXY_TYPES); }
 
+// object_field template picker. Index: [{uuid, name, version, meta_category, …}].
+const REF_OBJECT_TEMPLATES = '/api/object-templates';
+function loadObjectTemplates() { return refGet(REF_OBJECT_TEMPLATES); }
+function objectTemplatesNow() { return refPeek(REF_OBJECT_TEMPLATES); }
+
+// Per-template relations for the object_field override list. Cached per-uuid
+// (the path carries the uuid), mirroring MISP's per-uuid relation cache.
+// Response: {uuid, name, version, relations:[{object_relation, misp_attribute, …}], …}.
+function loadObjectTemplate(uuid) { return refGet(`/api/object-templates/${encodeURIComponent(uuid)}`); }
+
 // Warm the caches the editor is likely to need, so the first element selection
 // renders without a fetch round-trip. Best-effort; failures are non-fatal
 // (the editors retry on demand).

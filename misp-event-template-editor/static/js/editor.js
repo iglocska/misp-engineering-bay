@@ -478,6 +478,158 @@ function setupReferenceControls(mount, el) {
     if (el.type === 'attribute_field') setupAttributeField(mount, el);
     else if (el.type === 'tag_field') setupMultipicker(mount, el, MP_TAXONOMIES);
     else if (el.type === 'galaxy_field') setupMultipicker(mount, el, MP_GALAXY_TYPES);
+    else if (el.type === 'object_field') setupObjectField(mount, el);
+    else if (el.type === 'object_reference') setupObjectReference(mount, el);
+}
+
+// --- object_field (task 4.5): template picker + relations panel -------------
+async function setupObjectField(mount, el) {
+    const search = mount.querySelector('[data-et-ot-search]');
+    const datalist = mount.querySelector('[data-et-ot-datalist]');
+    const minver = mount.querySelector('[data-et-ot-minver]');
+    const panel = mount.querySelector('[data-et-relations-panel]');
+    const box = mount.querySelector('[data-et-ot-box]');
+    if (box && search) box.addEventListener('click', () => search.focus());
+
+    // minimum_version must serialise as an integer (schema: integer ≥ 1). Keep
+    // the raw string when it isn't a number so the error surfaces live.
+    if (minver) {
+        minver.addEventListener('input', () => {
+            const n = parseInt(minver.value, 10);
+            setPath(el, 'object_template.minimum_version', Number.isNaN(n) ? minver.value : n);
+            scheduleValidate();
+        });
+    }
+
+    // Template search → datalist + pick.
+    let list;
+    try {
+        list = await loadObjectTemplates();
+    } catch (err) {
+        console.warn('Could not load object templates:', err.message);
+    }
+    if (selectedElement() !== el) return;         // selection changed while loading
+    if (list && datalist && search) {
+        const byName = new Map(list.map(t => [t.name, t]));
+        datalist.innerHTML = list.map(t =>
+            `<option value="${escapeHtml(t.name)}">${escapeHtml(`${t.name} · ${t.meta_category || ''} · v${t.version}`)}</option>`).join('');
+        search.addEventListener('change', () => {
+            const t = byName.get(search.value.trim());
+            if (!t) return;
+            const prevUuid = el.object_template && el.object_template.uuid;
+            el.object_template = {
+                uuid: t.uuid,
+                name: t.name,
+                minimum_version: (prevUuid === t.uuid && el.object_template && el.object_template.minimum_version) || t.version || 1,
+            };
+            if (prevUuid !== t.uuid) delete el.relations;   // relations belong to the template
+            renderProperties();     // full re-render reflects uuid / minver / display / relations
+            renderCanvas();
+            scheduleValidate();
+        });
+    }
+
+    // Relations panel (once a template is chosen).
+    const uuid = el.object_template && el.object_template.uuid;
+    if (uuid && panel) {
+        try {
+            const tmpl = await loadObjectTemplate(uuid);
+            if (selectedElement() !== el) return;
+            renderRelations(panel, el, tmpl.relations || []);
+        } catch (err) {
+            panel.innerHTML = `<p class="field-error">Failed to load relations: ${escapeHtml(err.message)}</p>`;
+        }
+    }
+}
+
+// Render + wire the relations panel. Inclusion toggles mutate el.relations and
+// re-render the panel (to show/hide overrides); override edits mutate the entry
+// in place (no re-render, so inputs keep focus).
+function renderRelations(container, el, rels) {
+    container.innerHTML = relationsPanelHtml(el, rels);
+
+    container.querySelectorAll('[data-et-rel-toggle]').forEach(cb => {
+        cb.addEventListener('change', () => {
+            toggleRelation(el, cb.dataset.etRelToggle, cb.checked);
+            renderRelations(container, el, rels);
+            renderCanvas();
+            scheduleValidate();
+        });
+    });
+    const all = container.querySelector('[data-et-rel-all]');
+    const none = container.querySelector('[data-et-rel-none]');
+    if (all) all.addEventListener('click', e => {
+        e.preventDefault();
+        rels.forEach(r => ensureRelation(el, r.object_relation));
+        renderRelations(container, el, rels);
+        renderCanvas();
+        scheduleValidate();
+    });
+    if (none) none.addEventListener('click', e => {
+        e.preventDefault();
+        delete el.relations;
+        renderRelations(container, el, rels);
+        renderCanvas();
+        scheduleValidate();
+    });
+
+    container.querySelectorAll('.et-rel-row').forEach(row => {
+        const name = row.dataset.rel;
+        row.querySelectorAll('[data-et-rel-field]').forEach(input => {
+            const key = input.dataset.etRelField;
+            const evt = input.type === 'checkbox' ? 'change' : 'input';
+            input.addEventListener(evt, () => {
+                const entry = findRelation(el, name);
+                if (!entry) return;
+                if (input.type === 'checkbox') {
+                    if (input.checked) entry[key] = true; else delete entry[key];
+                } else if (input.value.trim() === '') {
+                    delete entry[key];
+                } else {
+                    entry[key] = input.value;
+                }
+                scheduleValidate();
+            });
+        });
+    });
+}
+
+function findRelation(el, name) {
+    return Array.isArray(el.relations) ? el.relations.find(r => r.object_relation === name) : undefined;
+}
+function ensureRelation(el, name) {
+    if (!Array.isArray(el.relations)) el.relations = [];
+    if (!el.relations.some(r => r.object_relation === name)) el.relations.push({ object_relation: name });
+}
+function toggleRelation(el, name, include) {
+    if (include) {
+        ensureRelation(el, name);
+    } else if (Array.isArray(el.relations)) {
+        el.relations = el.relations.filter(r => r.object_relation !== name);
+        if (!el.relations.length) delete el.relations;   // empty == "show all"
+    }
+}
+
+// --- object_reference (task 4.5): from/to sibling-object_field selects -------
+// The selects carry data-path, so the generic binder writes the value; here we
+// only populate options (siblings, with the current value preserved even if the
+// referenced object_field was deleted).
+function setupObjectReference(mount, el) {
+    const ofs = editorState.definition.structure.filter(e => e.type === 'object_field');
+    mount.querySelectorAll('[data-et-of-select]').forEach(sel => {
+        const path = sel.dataset.path;               // 'from' | 'to'
+        const current = el[path] || '';
+        const opts = ['<option value="">— select —</option>'].concat(
+            ofs.map(of => {
+                const lbl = `${of.label || of.id} (#${of.id})`;
+                return `<option value="${escapeHtml(of.id)}"${of.id === current ? ' selected' : ''}>${escapeHtml(lbl)}</option>`;
+            }));
+        if (current && !ofs.some(of => of.id === current)) {
+            opts.push(`<option value="${escapeHtml(current)}" selected>${escapeHtml(current)} (missing)</option>`);
+        }
+        sel.innerHTML = opts.join('');
+        sel.value = current;
+    });
 }
 
 // Multipicker configs: how to load each field's option universe and map the

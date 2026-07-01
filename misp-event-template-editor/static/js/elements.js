@@ -45,12 +45,12 @@ const ELEMENT_META = {
     section:          { label: true,  help: true,  parent: false, phase: '4.1', extra: null },
     text_block:       { label: false, help: false, parent: false, phase: '4.1', extra: null },
     attribute_field:  { label: true,  help: true,  parent: true,  phase: '4.2', extra: null },
-    object_field:     { label: true,  help: true,  parent: true,  phase: '4.5', extra: 'object-template picker + per-relation overrides, mandatory / repeatable' },
+    object_field:     { label: true,  help: true,  parent: true,  phase: '4.5', extra: null },
     tag_field:        { label: true,  help: true,  parent: true,  phase: '4.3', extra: 'restrict_taxonomies, multiple, mandatory' },
     galaxy_field:     { label: true,  help: true,  parent: true,  phase: '4.3', extra: 'restrict_galaxy_types, multiple, mandatory' },
     file_field:       { label: true,  help: true,  parent: true,  phase: '4.4', extra: null },
     event_report:     { label: true,  help: true,  parent: true,  phase: '4.4', extra: null },
-    object_reference: { label: false, help: false, parent: false, phase: '4.5', extra: 'from / to object_field selectors' },
+    object_reference: { label: false, help: false, parent: false, phase: '4.5', extra: null },
 };
 
 function elementTypeInfo(type) {
@@ -90,11 +90,6 @@ function renderElementEditor(el, sections) {
             tip: 'Static Markdown rendered inline in the user form — it is not an input the user fills in.',
         }));
     }
-    if (el.type === 'object_reference') {
-        rows.push(field('text', 'relationship_type', 'Relationship type', el.relationship_type || '', {
-            tip: 'The relationship between the two object fields, e.g. "connects-to", "downloads".',
-        }));
-    }
     if (meta.help) {
         rows.push(field('textarea', 'help', 'Help (Markdown)', el.help || '', {
             optional: true,
@@ -129,10 +124,11 @@ function field(kind, path, label, value, opts = {}) {
         ? ` <span class="tooltip-trigger" data-tooltip="${escapeHtml(opts.tip)}">&#9432;</span>`
         : '';
     const optAttr = opts.optional ? ' data-optional="1"' : '';
+    const roAttr = opts.readonly ? ' readonly' : '';
     const rows = opts.rows || 2;
     const control = kind === 'textarea'
-        ? `<textarea class="form-input form-textarea" rows="${rows}" data-path="${escapeHtml(path)}"${optAttr}>${escapeHtml(value)}</textarea>`
-        : `<input type="text" class="form-input" data-path="${escapeHtml(path)}"${optAttr} value="${escapeHtml(value)}">`;
+        ? `<textarea class="form-input form-textarea" rows="${rows}" data-path="${escapeHtml(path)}"${optAttr}${roAttr}>${escapeHtml(value)}</textarea>`
+        : `<input type="text" class="form-input" data-path="${escapeHtml(path)}"${optAttr}${roAttr} value="${escapeHtml(value)}">`;
     return `
         <div class="form-group">
             <label class="form-label">${escapeHtml(label)}${opts.optional ? ' <span class="et-opt">optional</span>' : ''}${tip}</label>
@@ -152,6 +148,8 @@ function renderTypeExtra(el) {
         case 'galaxy_field':    return renderGalaxyField(el);
         case 'file_field':      return renderFileField(el);
         case 'event_report':    return renderEventReport(el);
+        case 'object_field':    return renderObjectField(el);
+        case 'object_reference': return renderObjectReference(el);
         default: return null;
     }
 }
@@ -181,6 +179,137 @@ function renderAttributeField(el) {
         field('text', 'misp.default_value', 'Default value', misp.default_value || '', {
             optional: true, tip: 'A value pre-filled into the field for the user.' }),
     ].join('');
+}
+
+// object_field (task 4.5). mandatory/repeatable toggles + an object-template
+// picker (datalist search filled by editor.js) + a relations panel. The uuid is
+// set by the picker (readonly); minimum_version is an editable integer wired by
+// editor.js (it must serialise as a number). The relations panel (include/
+// exclude + per-relation overrides) is rendered by editor.js once the template's
+// relations load.
+function renderObjectField(el) {
+    const ot = el.object_template || {};
+    const hasTemplate = !!ot.uuid;
+    return [
+        checkboxField('mandatory', 'Mandatory — user must fill this object', !!el.mandatory,
+            'Require the object before the event can be created.'),
+        checkboxField('repeatable', 'Repeatable — user can add multiple object instances', !!el.repeatable,
+            'Let the user create more than one of this object.'),
+        '<hr class="et-sep">',
+        `<div class="form-group" data-et-ot>
+            <label class="form-label">Object template
+                <span class="tooltip-trigger" data-tooltip="The MISP object template this field builds, from the bundled misp-objects. Search installed templates by name.">&#9432;</span>
+            </label>
+            <div class="tag-input-wrapper" data-et-ot-box>
+                <input type="text" class="form-input tag-input" list="dl-object-templates"
+                       data-et-ot-search placeholder="Search object templates…" autocomplete="off">
+                <datalist id="dl-object-templates" data-et-ot-datalist></datalist>
+            </div>
+            <div class="et-ot-current" data-et-ot-display>${objectTemplateDisplay(ot)}</div>
+            <div class="field-error" data-error-for="object_template"></div>
+        </div>`,
+        field('text', 'object_template.uuid', 'Template UUID', ot.uuid || '', {
+            readonly: true, tip: 'Set by the template picker above.' }),
+        `<div class="form-group">
+            <label class="form-label">Minimum version
+                <span class="tooltip-trigger" data-tooltip="The object template must be installed at this version or newer for the field to render.">&#9432;</span>
+            </label>
+            <input type="number" min="1" step="1" class="form-input" data-et-ot-minver
+                   value="${escapeHtml(ot.minimum_version != null ? ot.minimum_version : '')}">
+            <div class="field-error" data-error-for="object_template.minimum_version"></div>
+        </div>`,
+        '<hr class="et-sep">',
+        `<div class="form-group">
+            <label class="form-label">Relations to include
+                <span class="tooltip-trigger" data-tooltip="Which of the template's relations appear in the user form, with optional per-relation overrides. Empty selection = show all relations (template default).">&#9432;</span>
+            </label>
+            <div class="et-relations-panel" data-et-relations-panel>${
+                hasTemplate
+                    ? '<p class="et-region-hint">Loading relations…</p>'
+                    : '<p class="et-region-hint">Pick an object template above to choose relations.</p>'
+            }</div>
+        </div>`,
+    ].join('');
+}
+
+// Selected-template summary line (name + uuid), or a muted placeholder.
+function objectTemplateDisplay(ot) {
+    if (!ot || !ot.uuid) return '<em class="muted">(none selected)</em>';
+    return `<strong>${escapeHtml(ot.name || '(unnamed)')}</strong> <span class="muted">${escapeHtml(ot.uuid)}</span>`;
+}
+
+// Relations panel markup (rendered/re-rendered by editor.js as inclusion toggles
+// change). `rels` = the template's relations; `el.relations` = the authored
+// subset with overrides. Empty rels / no template handled by the caller.
+function relationsPanelHtml(el, rels) {
+    if (!rels || !rels.length) return '<p class="et-region-hint">This object template has no relations.</p>';
+    const selected = new Map();
+    (el.relations || []).forEach(r => { if (r && r.object_relation) selected.set(r.object_relation, r); });
+    const rows = rels.map(r => relationRowHtml(r, selected.get(r.object_relation))).join('');
+    return `
+        <div class="et-relations-controls">
+            <a href="#" data-et-rel-all>Select all</a>
+            <span class="muted"> · </span>
+            <a href="#" data-et-rel-none>Select none</a>
+            <span class="muted"> — empty = show all relations (template default)</span>
+        </div>
+        <div class="et-relations-list">${rows}</div>`;
+}
+
+function relationRowHtml(r, sel) {
+    const included = !!sel;
+    const name = r.object_relation;
+    const type = r.misp_attribute ? ` <span class="et-rel-type">${escapeHtml(r.misp_attribute)}</span>` : '';
+    const descAttr = r.description ? ` title="${escapeHtml(r.description)}"` : '';
+    return `
+        <div class="et-rel-row${included ? ' included' : ''}" data-rel="${escapeHtml(name)}">
+            <label class="toggle-label"${descAttr}>
+                <input type="checkbox" data-et-rel-toggle="${escapeHtml(name)}"${included ? ' checked' : ''}>
+                <span class="et-rel-name">${escapeHtml(name)}</span>${type}
+            </label>
+            ${included ? relationOverridesHtml(sel) : ''}
+        </div>`;
+}
+
+// Per-relation override controls (only shown for an included relation).
+function relationOverridesHtml(sel) {
+    sel = sel || {};
+    return `
+        <div class="et-rel-overrides">
+            <label class="toggle-label"><input type="checkbox" data-et-rel-field="mandatory"${sel.mandatory ? ' checked' : ''}><span>mandatory</span></label>
+            <label class="toggle-label"><input type="checkbox" data-et-rel-field="hidden"${sel.hidden ? ' checked' : ''}><span>hidden</span></label>
+            <input type="text" class="form-input et-rel-ov" data-et-rel-field="default_value" placeholder="default value" value="${escapeHtml(sel.default_value || '')}">
+            <input type="text" class="form-input et-rel-ov" data-et-rel-field="label_override" placeholder="label override" value="${escapeHtml(sel.label_override || '')}">
+            <input type="text" class="form-input et-rel-ov" data-et-rel-field="help_override" placeholder="help override" value="${escapeHtml(sel.help_override || '')}">
+        </div>`;
+}
+
+// object_reference (task 4.5). Not user-facing — from/to point at sibling
+// object_field ids (selects filled by editor.js), plus relationship_type and an
+// optional comment.
+function renderObjectReference(el) {
+    return [
+        '<div class="et-region-hint">Object references are not user-facing — they materialise a relationship between two object fields when the event is created.</div>',
+        ofSelectField('from', 'From (source object field)', 'The object field the relationship starts from.'),
+        ofSelectField('to', 'To (target object field)', 'The object field the relationship points to.'),
+        field('text', 'relationship_type', 'Relationship type', el.relationship_type || '', {
+            tip: 'The relationship between the two object fields, e.g. "connects-to", "downloads".' }),
+        field('text', 'comment', 'Comment', el.comment || '', {
+            optional: true, tip: 'Optional comment stored on the reference.' }),
+    ].join('');
+}
+
+// A <select> shell for choosing a sibling object_field id; options filled by
+// editor.js (setupObjectReference) from the current structure.
+function ofSelectField(path, label, tip) {
+    return `
+        <div class="form-group">
+            <label class="form-label">${escapeHtml(label)}
+                <span class="tooltip-trigger" data-tooltip="${escapeHtml(tip)}">&#9432;</span>
+            </label>
+            <select class="form-select" data-path="${escapeHtml(path)}" data-et-of-select></select>
+            <div class="field-error" data-error-for="${escapeHtml(path)}"></div>
+        </div>`;
 }
 
 // file_field (task 4.4). mandatory / repeatable toggles + an optional `as`
