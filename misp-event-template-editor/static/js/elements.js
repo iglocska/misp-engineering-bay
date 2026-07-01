@@ -44,7 +44,7 @@ function newElement(type, id) {
 const ELEMENT_META = {
     section:          { label: true,  help: true,  parent: false, phase: '4.1', extra: null },
     text_block:       { label: false, help: false, parent: false, phase: '4.1', extra: null },
-    attribute_field:  { label: true,  help: true,  parent: true,  phase: '4.2', extra: 'MISP category → type, to_ids_default, comment_template, default_value, mandatory / repeatable' },
+    attribute_field:  { label: true,  help: true,  parent: true,  phase: '4.2', extra: null },
     object_field:     { label: true,  help: true,  parent: true,  phase: '4.5', extra: 'object-template picker + per-relation overrides, mandatory / repeatable' },
     tag_field:        { label: true,  help: true,  parent: true,  phase: '4.3', extra: 'restrict_taxonomies, multiple, mandatory' },
     galaxy_field:     { label: true,  help: true,  parent: true,  phase: '4.3', extra: 'restrict_galaxy_types, multiple, mandatory' },
@@ -105,7 +105,10 @@ function renderElementEditor(el, sections) {
     if (meta.parent) {
         rows.push(parentField(el, sections));
     }
-    if (meta.extra) {
+    const extra = renderTypeExtra(el);
+    if (extra) {
+        rows.push(extra);
+    } else if (meta.extra) {
         rows.push(`<p class="et-region-hint">Type-specific fields — ${escapeHtml(meta.extra)}.<span class="tasktag">task ${meta.phase}</span></p>`);
     }
 
@@ -134,6 +137,76 @@ function field(kind, path, label, value, opts = {}) {
         <div class="form-group">
             <label class="form-label">${escapeHtml(label)}${opts.optional ? ' <span class="et-opt">optional</span>' : ''}${tip}</label>
             ${control}
+            <div class="field-error" data-error-for="${escapeHtml(path)}"></div>
+        </div>`;
+}
+
+// --- Type-specific field blocks (Phase 4) ---------------------------------
+// Dispatch to the per-type editor extension. Returns an HTML string, or null
+// for types whose fields are fully covered by the common editor above
+// (section, text_block) — those advertise `extra:null` in ELEMENT_META.
+function renderTypeExtra(el) {
+    switch (el.type) {
+        case 'attribute_field': return renderAttributeField(el);
+        default: return null;
+    }
+}
+
+// attribute_field (task 4.2). `mandatory`/`repeatable` toggles, then the MISP
+// pane: category → type dependent dropdowns (populated by editor.js from the
+// reference-data cache), the to_ids default, and the comment/value templates.
+// The category/type <select>s are rendered as empty shells carrying
+// `data-et-ref`; editor.js fills their options and wires the category→type
+// cascade. Everything else binds through the generic [data-path] machinery.
+function renderAttributeField(el) {
+    const misp = el.misp || {};
+    return [
+        checkboxField('mandatory', 'Mandatory — user must fill this field', !!el.mandatory,
+            'Require a value before the event can be created.'),
+        checkboxField('repeatable', 'Repeatable — user can add multiple values', !!el.repeatable,
+            'Let the user add more than one value for this field.'),
+        '<hr class="et-sep">',
+        refSelectField('misp.category', 'MISP category',
+            'Which MISP attribute category this field records. Determines the available types.'),
+        refSelectField('misp.type', 'MISP type', null, 'Types are filtered to the selected category.'),
+        `<div class="field-error" data-error-for="misp"></div>`,
+        checkboxField('misp.to_ids_default', 'Default the IDS flag on (to_ids)', !!misp.to_ids_default,
+            'Pre-tick the to_ids flag on the attribute the user creates.'),
+        field('text', 'misp.comment_template', 'Comment template', misp.comment_template || '', {
+            optional: true, tip: 'Pre-fills the attribute comment when the user submits.' }),
+        field('text', 'misp.default_value', 'Default value', misp.default_value || '', {
+            optional: true, tip: 'A value pre-filled into the field for the user.' }),
+    ].join('');
+}
+
+// A boolean toggle bound via [data-path]; marked data-optional so unchecking it
+// deletes the key (keeps the canonical doc minimal — see editor.js binder).
+function checkboxField(path, label, checked, tip) {
+    const tipHtml = tip
+        ? ` <span class="tooltip-trigger" data-tooltip="${escapeHtml(tip)}">&#9432;</span>`
+        : '';
+    return `
+        <div class="form-group">
+            <label class="toggle-label">
+                <input type="checkbox" data-path="${escapeHtml(path)}" data-optional="1"${checked ? ' checked' : ''}>
+                <span>${escapeHtml(label)}</span>${tipHtml}
+            </label>
+        </div>`;
+}
+
+// A reference-data-backed <select> shell. Options + change wiring are added by
+// editor.js (which owns the reference cache); here we only lay out the control
+// with its data-path and a stable data-et-ref = the path (editor.js keys on it).
+function refSelectField(path, label, tip, hint) {
+    const tipHtml = tip
+        ? ` <span class="tooltip-trigger" data-tooltip="${escapeHtml(tip)}">&#9432;</span>`
+        : '';
+    const hintHtml = hint ? `<div class="et-field-hint">${escapeHtml(hint)}</div>` : '';
+    return `
+        <div class="form-group">
+            <label class="form-label">${escapeHtml(label)}${tipHtml}</label>
+            <select class="form-select" data-path="${escapeHtml(path)}" data-et-ref="${escapeHtml(path)}"></select>
+            ${hintHtml}
             <div class="field-error" data-error-for="${escapeHtml(path)}"></div>
         </div>`;
 }

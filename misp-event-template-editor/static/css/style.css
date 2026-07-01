@@ -975,3 +975,9 @@ body {
 .et-vitem.et-v-error { color: var(--text); }
 .et-vitem.et-v-error code { color: var(--danger); }
 .et-vitem.et-v-warning code { color: var(--warning); }
+
+/* --- Element property editors (Phase 4) ---------------------------- */
+/* Subtle divider between the shared fields and a type's MISP-specific pane. */
+.et-sep { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+/* Inline helper text under a reference-backed control (e.g. category→type). */
+.et-field-hint { color: var(--text-dim); font-size: 12px; margin-top: 4px; }

@@ -109,6 +109,9 @@ async function initEditor() {
         console.warn('Could not load /api/config:', err.message);
     }
 
+    // Warm the reference-data cache the element editors will need (best-effort).
+    prewarmReferenceData();
+
     bindEnvelope();
     renderEnvelope();
 
@@ -429,6 +432,7 @@ function renderProperties() {
     }
     mount.innerHTML = renderElementEditor(el, sectionsList());
     bindPropertyInputs(mount, el);
+    setupReferenceControls(mount, el);
 }
 
 // Bind every [data-path] control in the properties pane to the selected element
@@ -437,8 +441,12 @@ function bindPropertyInputs(mount, el) {
     mount.querySelectorAll('[data-path]').forEach(input => {
         const path = input.dataset.path;
         const optional = input.dataset.optional === '1';
-        input.addEventListener('input', () => onPropertyEdit(el, path, input.value, optional));
-        input.addEventListener('change', () => onPropertyEdit(el, path, input.value, optional));
+        if (input.type === 'checkbox') {
+            input.addEventListener('change', () => onPropertyToggle(el, path, input.checked, optional));
+        } else {
+            input.addEventListener('input', () => onPropertyEdit(el, path, input.value, optional));
+            input.addEventListener('change', () => onPropertyEdit(el, path, input.value, optional));
+        }
     });
 }
 
@@ -452,6 +460,64 @@ function onPropertyEdit(el, path, rawValue, optional) {
 
     renderCanvas();          // refresh the row summary / selection highlight
     scheduleValidate();
+}
+
+// Boolean toggle: write true when checked; an optional toggle deletes its key
+// when unchecked (keeps the canonical doc minimal), a required one writes false.
+function onPropertyToggle(el, path, checked, optional) {
+    if (checked) setPath(el, path, true);
+    else if (optional) deletePath(el, path);
+    else setPath(el, path, false);
+    scheduleValidate();      // toggles don't change the canvas row summary
+}
+
+// --- Reference-data-backed controls (task 4.2: category→type; later: pickers)
+// Called after the generic binder so the generic value-writes fire first and
+// these handlers see up-to-date element state.
+function setupReferenceControls(mount, el) {
+    if (el.type === 'attribute_field') setupAttributeField(mount, el);
+}
+
+async function setupAttributeField(mount, el) {
+    const catSel = mount.querySelector('[data-et-ref="misp.category"]');
+    const typeSel = mount.querySelector('[data-et-ref="misp.type"]');
+    if (!catSel || !typeSel) return;
+
+    let data = attributeCategoriesNow();
+    if (!data) {
+        try {
+            data = await loadAttributeCategories();
+        } catch (err) {
+            console.warn('Could not load attribute categories:', err.message);
+            return;
+        }
+        if (selectedElement() !== el) return;    // selection changed while loading
+    }
+
+    const misp = el.misp || (el.misp = { category: '', type: '' });
+    fillOptions(catSel, data.categories, misp.category, '— select —');
+    fillOptions(typeSel, typesForCategory(data, misp.category), misp.type,
+        misp.category ? '— select a type —' : '— select a category first —');
+
+    // Category change cascades to the type list; a now-invalid type is cleared.
+    catSel.addEventListener('change', () => {
+        const cat = catSel.value;
+        const types = typesForCategory(data, cat);
+        if (misp.type && !types.includes(misp.type)) setPath(el, 'misp.type', '');
+        fillOptions(typeSel, types, misp.type,
+            cat ? '— select a type —' : '— select a category first —');
+        renderCanvas();
+        scheduleValidate();
+    });
+}
+
+// (Re)populate a <select> with a leading placeholder + options, keeping the
+// current value selected when it is still one of the options.
+function fillOptions(sel, values, current, placeholder) {
+    const valid = !!current && values.includes(current);
+    sel.innerHTML = `<option value="">${escapeHtml(placeholder)}</option>` +
+        values.map(v => `<option value="${escapeHtml(v)}"${v === current ? ' selected' : ''}>${escapeHtml(v)}</option>`).join('');
+    sel.value = valid ? current : '';
 }
 
 // --- Live validation surface ----------------------------------------------
