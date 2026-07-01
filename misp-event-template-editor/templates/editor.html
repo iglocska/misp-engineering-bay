@@ -1,18 +1,72 @@
 {% extends "base.html" %}
 {% block title %}Editor — MISP Event Template Editor{% endblock %}
 {% block content %}
-<section class="editor-shell">
-  <header class="page-header">
-    <h1>Event Template Editor</h1>
-    <p class="muted">
-      Author, validate, preview, and export MISP event templates
-      (<code>event-template-v1</code>). Mode: <strong>{{ mode }}</strong>.
-    </p>
+<div class="editor-shell" id="editor-shell" data-mode="{{ mode }}">
+
+  <!-- Toolbar -->
+  <header class="et-toolbar">
+    <div class="et-toolbar-titles">
+      <h1>Event Template Editor</h1>
+      <p class="muted">Author, validate, preview, and export MISP event templates
+        (<code>event-template-v1</code>).</p>
+    </div>
+    <div class="et-toolbar-actions">
+      <span class="mode-badge" id="mode-badge" data-mode="{{ mode }}"
+            title="{% if mode == 'private' %}Private mode: can persist to the misp-event-templates submodule{% else %}Public mode: export/download only{% endif %}">{{ mode }}</span>
+    </div>
   </header>
-  <div class="placeholder-panel">
-    <p>Scaffold in place. The builder canvas, element property editors,
-       <code>event_defaults</code> panel, and live preview are under construction
-       (see the project PRD checklist).</p>
+
+  <!-- Envelope + library metadata (task 3.2) -->
+  <section class="et-region et-envelope" id="envelope-region">
+    <div class="et-region-header"><h2>Template metadata</h2></div>
+    <div class="et-region-body">
+      <p class="et-region-hint">Slug, name, description, <code>misp_default</code> and the
+        <code>library_metadata</code> panel are wired up here.<span class="tasktag">task 3.2</span></p>
+    </div>
+  </section>
+
+  <!-- Builder workspace: palette | canvas | inspector -->
+  <div class="et-workspace">
+
+    <!-- Palette -->
+    <section class="et-region et-palette" id="palette-region">
+      <div class="et-region-header"><h2>Palette</h2></div>
+      <div class="et-region-body">
+        <p class="et-region-hint">The 9 element types drop onto the canvas from
+          here.<span class="tasktag">task 3.3</span></p>
+      </div>
+    </section>
+
+    <!-- Canvas -->
+    <section class="et-region et-canvas" id="canvas-region">
+      <div class="et-region-header"><h2>Structure</h2></div>
+      <div class="et-region-body">
+        <p class="et-region-hint">The sortable structure canvas — add, reorder and
+          select elements.<span class="tasktag">task 3.3</span></p>
+      </div>
+    </section>
+
+    <!-- Inspector: properties (top) + preview (bottom) -->
+    <div class="et-inspector">
+      <section class="et-region" id="properties-region">
+        <div class="et-region-header"><h2>Properties</h2></div>
+        <div class="et-region-body">
+          <p class="et-region-hint">Per-element property editors for the selected
+            element, plus <code>event_defaults</code>.<span class="tasktag">tasks 3.3 · 4.x · 5.x</span></p>
+        </div>
+      </section>
+      <section class="et-region" id="preview-region">
+        <div class="et-region-header"><h2>Preview</h2></div>
+        <div class="et-region-body">
+          <p class="et-region-hint">Live canonical-JSON view, validation status and a
+            read-only user-form preview.<span class="tasktag">task 6.x</span></p>
+        </div>
+      </section>
+    </div>
+
   </div>
-</section>
+</div>
+
+<script src="{{ url_for('static', filename='js/common.js') }}"></script>
+<script src="{{ url_for('static', filename='js/editor.js') }}"></script>
 {% endblock %}

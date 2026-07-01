@@ -2,13 +2,17 @@
 {% block title %}Browse — MISP Event Template Editor{% endblock %}
 {% block content %}
 <section class="browser-shell">
-  <header class="page-header">
-    <h1>Browse Templates</h1>
-    <p class="muted">Browse the bundled <code>misp-event-templates</code> library
-       and your local drafts.</p>
+  <header class="et-toolbar">
+    <div class="et-toolbar-titles">
+      <h1>Browse Templates</h1>
+      <p class="muted">Browse the bundled <code>misp-event-templates</code> library
+        and your local drafts.</p>
+    </div>
   </header>
   <div class="placeholder-panel">
-    <p>Library browser under construction (see the project PRD checklist).</p>
+    <p>Library browser — list, filter, load, clone and edit.<span class="tasktag">task 7.1</span></p>
   </div>
 </section>
+
+<script src="{{ url_for('static', filename='js/common.js') }}"></script>
 {% endblock %}

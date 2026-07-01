@@ -679,3 +679,140 @@ body {
     .editor-preview { position: static; max-height: 400px; }
     .editor-form { max-height: none; }
 }
+
+/* ===================================================================== */
+/* === Event Template Editor — builder shell (task 3.1) ================ */
+/* ===================================================================== */
+
+/* Small utilities used by the scaffolded pages */
+.muted { color: var(--text-muted); font-size: 13px; }
+.muted code, .et-region-hint code {
+    font-family: var(--font-mono);
+    font-size: 0.9em;
+    background: var(--bg-input);
+    padding: 1px 5px;
+    border-radius: var(--radius-sm);
+}
+
+/* Neutral placeholder card (browse / docs scaffolds, empty regions) */
+.placeholder-panel {
+    background: var(--bg-surface);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    color: var(--text-muted);
+    font-size: 13px;
+    text-align: center;
+}
+
+/* --- Overall shell -------------------------------------------------- */
+.editor-shell { display: flex; flex-direction: column; gap: 16px; }
+
+.et-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+.et-toolbar-titles h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+.et-toolbar-titles .muted { margin-top: 2px; }
+.et-toolbar-actions { display: flex; gap: 8px; align-items: center; }
+
+/* Mode pill (public / private) */
+.mode-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: capitalize;
+    background: var(--bg-surface-hover);
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+}
+.mode-badge::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+}
+.mode-badge[data-mode="private"] { background: var(--success-bg); color: var(--success); border-color: transparent; }
+.mode-badge[data-mode="public"] { background: var(--primary-bg); color: var(--primary); border-color: transparent; }
+
+/* --- Regions (reusable panel chrome) -------------------------------- */
+.et-region {
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.et-region-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-card);
+}
+.et-region-header h2 {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+}
+.et-region-body { padding: 14px; flex: 1; min-height: 0; overflow: auto; }
+.et-region-hint {
+    color: var(--text-dim);
+    font-size: 12px;
+    font-style: italic;
+    line-height: 1.5;
+}
+.tasktag {
+    font-style: normal;
+    font-weight: 500;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--primary);
+    background: var(--primary-bg);
+    padding: 1px 6px;
+    border-radius: var(--radius-sm);
+    margin-left: 6px;
+    white-space: nowrap;
+}
+
+/* --- Envelope (full-width, task 3.2) -------------------------------- */
+.et-envelope .et-region-body { padding: 16px; }
+
+/* --- Workspace: palette | canvas | inspector ------------------------ */
+.et-workspace {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr) minmax(0, 1.05fr);
+    gap: 16px;
+    align-items: start;
+}
+.et-palette { min-height: 420px; }
+.et-canvas { min-height: 420px; }
+.et-inspector {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-height: 420px;
+}
+.et-inspector .et-region { flex: 1; }
+
+@media (max-width: 1200px) {
+    .et-workspace { grid-template-columns: 200px minmax(0, 1fr); }
+    .et-inspector { grid-column: 1 / -1; flex-direction: row; }
+}
+@media (max-width: 800px) {
+    .et-workspace { grid-template-columns: 1fr; }
+    .et-inspector { flex-direction: column; }
+}
