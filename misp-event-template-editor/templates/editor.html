@@ -103,18 +103,15 @@
     <!-- Palette -->
     <section class="et-region et-palette" id="palette-region">
       <div class="et-region-header"><h2>Palette</h2></div>
-      <div class="et-region-body">
-        <p class="et-region-hint">The 9 element types drop onto the canvas from
-          here.<span class="tasktag">task 3.3</span></p>
-      </div>
+      <div class="et-region-body" id="palette-region-body"></div>
     </section>
 
     <!-- Canvas -->
     <section class="et-region et-canvas" id="canvas-region">
       <div class="et-region-header"><h2>Structure</h2></div>
       <div class="et-region-body">
-        <p class="et-region-hint">The sortable structure canvas — add, reorder and
-          select elements.<span class="tasktag">task 3.3</span></p>
+        <div id="validation-summary" class="et-validation"></div>
+        <div id="canvas-region-body" class="et-canvas-mount"></div>
       </div>
     </section>
 
@@ -122,10 +119,7 @@
     <div class="et-inspector">
       <section class="et-region" id="properties-region">
         <div class="et-region-header"><h2>Properties</h2></div>
-        <div class="et-region-body">
-          <p class="et-region-hint">Per-element property editors for the selected
-            element, plus <code>event_defaults</code>.<span class="tasktag">tasks 3.3 · 4.x · 5.x</span></p>
-        </div>
+        <div class="et-region-body" id="properties-region-body"></div>
       </section>
       <section class="et-region" id="preview-region">
         <div class="et-region-header"><h2>Preview</h2></div>
@@ -140,5 +134,6 @@
 </div>
 
 <script src="{{ url_for('static', filename='js/common.js') }}"></script>
+<script src="{{ url_for('static', filename='js/elements.js') }}"></script>
 <script src="{{ url_for('static', filename='js/editor.js') }}"></script>
 {% endblock %}

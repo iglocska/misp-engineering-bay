@@ -68,6 +68,35 @@ async function _parseJson(res) {
     return data;
 }
 
+// --- Dotted-path state access ----------------------------------------------
+// Simple key paths ("misp.category", "object_template.minimum_version"); no
+// array indices — element editing operates on one element object at a time.
+function getPath(obj, path) {
+    return path.split('.').reduce((o, k) => (o == null ? undefined : o[k]), obj);
+}
+
+function setPath(obj, path, value) {
+    const keys = path.split('.');
+    let o = obj;
+    for (let i = 0; i < keys.length - 1; i++) {
+        if (o[keys[i]] == null || typeof o[keys[i]] !== 'object') o[keys[i]] = {};
+        o = o[keys[i]];
+    }
+    o[keys[keys.length - 1]] = value;
+}
+
+// Remove a key at a path (used to drop emptied optional fields). Leaves any
+// now-empty parent objects in place — cheap, and cleanForOutput() prunes them.
+function deletePath(obj, path) {
+    const keys = path.split('.');
+    let o = obj;
+    for (let i = 0; i < keys.length - 1; i++) {
+        if (o == null) return;
+        o = o[keys[i]];
+    }
+    if (o != null) delete o[keys[keys.length - 1]];
+}
+
 // --- Misc ------------------------------------------------------------------
 // Trailing-edge debounce for live-preview / search inputs.
 function debounce(fn, wait = 200) {

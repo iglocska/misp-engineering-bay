@@ -112,8 +112,14 @@ async function initEditor() {
     bindEnvelope();
     renderEnvelope();
 
+    renderPalette();
+    renderCanvas();
+    renderProperties();
+
     // Seed a UUID for a brand-new template so the required field is populated.
-    if (!editorState.definition.uuid) regenerateUuid();
+    if (!editorState.definition.uuid) await regenerateUuid();
+
+    scheduleValidate();
 }
 
 function setMode(mode) {
@@ -149,15 +155,17 @@ function bindEnvelope() {
     onInput('env-name', e => {
         editorState.definition.name = e.target.value;
         maybeDeriveSlug();
+        scheduleValidate();
     });
     onInput('env-description', e => {
         const v = e.target.value;
         editorState.definition.description = v === '' ? null : v;
+        scheduleValidate();
     });
-    onChange('env-misp-default', e => { editorState.definition.misp_default = e.target.checked; });
-    onClick('env-uuid-regen', regenerateUuid);
-    onInput('lib-compat-version', e => { libMeta().compatible_misp_version = e.target.value.trim(); });
-    onClick('add-author', () => { libMeta().authors.push({ name: '', contact: '' }); renderAuthors(); focusLast('.author-name'); });
+    onChange('env-misp-default', e => { editorState.definition.misp_default = e.target.checked; scheduleValidate(); });
+    onClick('env-uuid-regen', () => regenerateUuid().then(scheduleValidate));
+    onInput('lib-compat-version', e => { libMeta().compatible_misp_version = e.target.value.trim(); scheduleValidate(); });
+    onClick('add-author', () => { libMeta().authors.push({ name: '', contact: '' }); renderAuthors(); focusLast('.author-name'); scheduleValidate(); });
     setupTagInput();
 }
 
@@ -220,9 +228,9 @@ function renderAuthors() {
         </div>`).join('');
     c.querySelectorAll('.author-row').forEach(row => {
         const i = Number(row.dataset.idx);
-        row.querySelector('.author-name').addEventListener('input', e => { authors[i].name = e.target.value; });
+        row.querySelector('.author-name').addEventListener('input', e => { authors[i].name = e.target.value; scheduleValidate(); });
         row.querySelector('.author-contact').addEventListener('input', e => { authors[i].contact = e.target.value; });
-        row.querySelector('.author-remove').addEventListener('click', () => { authors.splice(i, 1); renderAuthors(); });
+        row.querySelector('.author-remove').addEventListener('click', () => { authors.splice(i, 1); renderAuthors(); scheduleValidate(); });
     });
 }
 
@@ -257,6 +265,278 @@ function setupTagInput() {
         }
     });
     if (wrapper) wrapper.addEventListener('click', () => input.focus());
+}
+
+// ==========================================================================
+// Builder canvas (task 3.3): palette · canvas (reorder/select/delete) ·
+// properties framework · live validation surface.
+// ==========================================================================
+
+// --- Palette --------------------------------------------------------------
+function renderPalette() {
+    const mount = document.getElementById('palette-region-body');
+    if (!mount) return;
+    mount.innerHTML = ELEMENT_TYPES.map(t => `
+        <button type="button" class="et-palette-btn" data-type="${escapeHtml(t.type)}"
+                title="${escapeHtml(t.help)}">
+            <span class="et-palette-icon">${escapeHtml(t.icon)}</span>
+            <span class="et-palette-label">${escapeHtml(t.label)}</span>
+        </button>`).join('');
+    mount.querySelectorAll('.et-palette-btn').forEach(btn => {
+        btn.addEventListener('click', () => addElement(btn.dataset.type));
+    });
+}
+
+function addElement(type) {
+    const el = newElement(type, nextElementId(type));
+    editorState.definition.structure.push(el);
+    editorState.selectedId = el.id;
+    renderCanvas();
+    renderProperties();
+    scheduleValidate();
+}
+
+// Generate a unique, pattern-valid id: "<type>_<n>".
+function nextElementId(type) {
+    const used = new Set(editorState.definition.structure.map(e => e.id));
+    let n = 1;
+    let id = `${type}_${n}`;
+    while (used.has(id)) { n += 1; id = `${type}_${n}`; }
+    return id;
+}
+
+// --- Canvas ---------------------------------------------------------------
+function sectionsList() {
+    return editorState.definition.structure.filter(e => e.type === 'section');
+}
+
+function renderCanvas() {
+    const mount = document.getElementById('canvas-region-body');
+    if (!mount) return;
+    const structure = editorState.definition.structure;
+    if (!structure.length) {
+        mount.innerHTML = '<p class="et-region-hint">Empty template. Add elements from the palette on the left.</p>';
+        return;
+    }
+    const errIdx = errorIndexMap(editorState._errors || []);
+    mount.innerHTML = `<div class="et-canvas-list">${
+        structure.map((el, i) => canvasRow(el, i, errIdx.get(i) || 0)).join('')
+    }</div>`;
+
+    mount.querySelectorAll('.et-canvas-el').forEach(row => {
+        const idx = Number(row.dataset.idx);
+        row.addEventListener('click', e => {
+            if (e.target.closest('.et-el-remove')) return;
+            selectElement(editorState.definition.structure[idx].id);
+        });
+        row.querySelector('.et-el-remove').addEventListener('click', () => removeElement(idx));
+        bindRowDrag(row);
+    });
+}
+
+function canvasRow(el, idx, errCount) {
+    const info = elementTypeInfo(el.type);
+    const selected = el.id === editorState.selectedId ? ' selected' : '';
+    const errBadge = errCount
+        ? `<span class="et-el-errdot" title="${errCount} validation error(s)">${errCount}</span>`
+        : '';
+    const indent = el.parent ? ' et-el-child' : '';
+    return `
+        <div class="et-canvas-el${selected}${indent}" data-idx="${idx}" draggable="true">
+            <span class="et-drag-handle" title="Drag to reorder">⠿</span>
+            <span class="et-el-badge" title="${escapeHtml(info.label)}">${escapeHtml(info.icon)}</span>
+            <span class="et-el-main">
+                <span class="et-el-title">${escapeHtml(elementSummary(el))}</span>
+                <span class="et-el-id">#${escapeHtml(el.id)}</span>
+            </span>
+            ${errBadge}
+            <button type="button" class="btn btn-icon btn-danger et-el-remove" title="Remove element">&times;</button>
+        </div>`;
+}
+
+function selectElement(id) {
+    editorState.selectedId = id;
+    renderCanvas();
+    renderProperties();
+}
+
+function removeElement(idx) {
+    const [removed] = editorState.definition.structure.splice(idx, 1);
+    if (removed && removed.id === editorState.selectedId) editorState.selectedId = null;
+    renderCanvas();
+    renderProperties();
+    scheduleValidate();
+}
+
+// --- Drag reorder (native HTML5 DnD, flat list) ---------------------------
+function bindRowDrag(row) {
+    row.addEventListener('dragstart', e => {
+        editorState._dragIdx = Number(row.dataset.idx);
+        row.classList.add('et-dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        // Firefox needs data set for the drag to start.
+        try { e.dataTransfer.setData('text/plain', row.dataset.idx); } catch (_) { /* ignore */ }
+    });
+    row.addEventListener('dragend', () => {
+        editorState._dragIdx = null;
+        document.querySelectorAll('.et-canvas-el').forEach(r => r.classList.remove('et-dragging', 'et-drop-before', 'et-drop-after'));
+    });
+    row.addEventListener('dragover', e => {
+        if (editorState._dragIdx == null) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const after = isAfter(e, row);
+        row.classList.toggle('et-drop-after', after);
+        row.classList.toggle('et-drop-before', !after);
+    });
+    row.addEventListener('dragleave', () => row.classList.remove('et-drop-before', 'et-drop-after'));
+    row.addEventListener('drop', e => {
+        e.preventDefault();
+        moveElement(editorState._dragIdx, Number(row.dataset.idx), isAfter(e, row));
+    });
+}
+
+function isAfter(e, row) {
+    const rect = row.getBoundingClientRect();
+    return e.clientY > rect.top + rect.height / 2;
+}
+
+function moveElement(from, targetIdx, after) {
+    const arr = editorState.definition.structure;
+    if (from == null || from < 0 || from >= arr.length) return;
+    let insertAt = after ? targetIdx + 1 : targetIdx;
+    const [item] = arr.splice(from, 1);
+    if (from < insertAt) insertAt -= 1;          // account for the removal shift
+    insertAt = Math.max(0, Math.min(insertAt, arr.length));
+    arr.splice(insertAt, 0, item);
+    editorState._dragIdx = null;
+    renderCanvas();
+    scheduleValidate();
+}
+
+// --- Properties pane ------------------------------------------------------
+function selectedElement() {
+    return editorState.definition.structure.find(e => e.id === editorState.selectedId) || null;
+}
+
+function renderProperties() {
+    const mount = document.getElementById('properties-region-body');
+    if (!mount) return;
+    const el = selectedElement();
+    if (!el) {
+        mount.innerHTML = '<p class="et-region-hint">Select an element on the canvas, or add one from the palette, to edit its properties.</p>';
+        return;
+    }
+    mount.innerHTML = renderElementEditor(el, sectionsList());
+    bindPropertyInputs(mount, el);
+}
+
+// Bind every [data-path] control in the properties pane to the selected element
+// via the dotted-path setter. Optional fields delete their key when emptied.
+function bindPropertyInputs(mount, el) {
+    mount.querySelectorAll('[data-path]').forEach(input => {
+        const path = input.dataset.path;
+        const optional = input.dataset.optional === '1';
+        input.addEventListener('input', () => onPropertyEdit(el, path, input.value, optional));
+        input.addEventListener('change', () => onPropertyEdit(el, path, input.value, optional));
+    });
+}
+
+function onPropertyEdit(el, path, rawValue, optional) {
+    const value = rawValue;
+    if (optional && value.trim() === '') deletePath(el, path);
+    else setPath(el, path, value);
+
+    // Editing the id must keep the selection pointer in sync.
+    if (path === 'id') editorState.selectedId = el.id;
+
+    renderCanvas();          // refresh the row summary / selection highlight
+    scheduleValidate();
+}
+
+// --- Live validation surface ----------------------------------------------
+let _validateTimer = null;
+
+function scheduleValidate() {
+    clearTimeout(_validateTimer);
+    _validateTimer = setTimeout(runValidate, 350);
+}
+
+async function runValidate() {
+    try {
+        const res = await apiPost('/api/templates/validate', cleanForOutput(editorState.definition));
+        applyValidation(res);
+    } catch (err) {
+        // Transient/offline: leave the last known state, note once.
+        console.warn('Validation request failed:', err.message);
+    }
+}
+
+function applyValidation(res) {
+    editorState._errors = res.errors || [];
+    editorState._warnings = res.warnings || [];
+    renderValidationSummary(res);
+    renderCanvas();          // repaint per-row error dots
+    paintPropertyErrors(res.errors || []);
+}
+
+// Map "$.structure[<i>]..." error paths to element-index counts.
+function errorIndexMap(errors) {
+    const m = new Map();
+    errors.forEach(err => {
+        const match = /\$\.structure\[(\d+)\]/.exec(err.path || '');
+        if (match) {
+            const i = Number(match[1]);
+            m.set(i, (m.get(i) || 0) + 1);
+        }
+    });
+    return m;
+}
+
+function renderValidationSummary(res) {
+    const mount = document.getElementById('validation-summary');
+    if (!mount) return;
+    const errs = res.errors || [];
+    const warns = res.warnings || [];
+    const pill = res.valid
+        ? '<span class="et-vpill et-valid">✓ Valid</span>'
+        : `<span class="et-vpill et-invalid">✕ ${errs.length} error${errs.length === 1 ? '' : 's'}</span>`;
+    const warnPill = warns.length
+        ? `<span class="et-vpill et-warn">${warns.length} warning${warns.length === 1 ? '' : 's'}</span>`
+        : '';
+    const list = (errs.concat(warns)).map(e => `
+        <li class="et-vitem et-v-${escapeHtml(e.severity || 'error')}">
+            <code>${escapeHtml(shortPath(e.path))}</code> ${escapeHtml(e.message)}
+        </li>`).join('');
+    mount.innerHTML = `
+        <div class="et-vhead">${pill}${warnPill}</div>
+        ${list ? `<ul class="et-vlist">${list}</ul>` : ''}`;
+}
+
+// Highlight the offending property inputs for the selected element.
+function paintPropertyErrors(errors) {
+    const mount = document.getElementById('properties-region-body');
+    if (!mount) return;
+    mount.querySelectorAll('.field-error').forEach(n => { n.textContent = ''; });
+    const el = selectedElement();
+    if (!el) return;
+    const idx = editorState.definition.structure.indexOf(el);
+    const prefix = `$.structure[${idx}]`;
+    errors.forEach(err => {
+        const p = err.path || '';
+        if (!p.startsWith(prefix)) return;
+        // leaf key after the element prefix, e.g. "$.structure[3].misp" -> "misp"
+        const rest = p.slice(prefix.length).replace(/^\./, '');
+        const target = mount.querySelector(`.field-error[data-error-for="${cssEscape(rest)}"]`);
+        if (target) target.textContent = err.message;
+    });
+}
+
+function shortPath(path) {
+    return (path || '$').replace(/^\$\.?/, '') || '(root)';
+}
+function cssEscape(s) {
+    return String(s).replace(/["\\]/g, '\\$&');
 }
 
 // --- Tiny DOM helpers (null-safe; some elements are editor-page only) ------
