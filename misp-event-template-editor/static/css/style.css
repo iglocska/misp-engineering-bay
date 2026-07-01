@@ -790,6 +790,30 @@ body {
 
 /* --- Envelope (full-width, task 3.2) -------------------------------- */
 .et-envelope .et-region-body { padding: 16px; }
+.et-envelope-body .form-group { margin-bottom: 14px; }
+.et-envelope-body .form-row .form-group { margin-bottom: 14px; }
+.et-envelope-body .field-error:empty { display: none; }
+.compat-input { max-width: 220px; }
+
+/* "Ship as MISP default" flag sits under a label, aligned with the row */
+.env-flags .toggle-label { margin-top: 2px; }
+
+/* Sub-heading separating library_metadata from the core envelope */
+.et-subheading {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-muted);
+    margin: 6px 0 16px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+
+/* Repeatable author rows */
+.author-row { align-items: center; }
+.author-row .form-group { margin-bottom: 8px; }
+.author-row .author-remove { flex-shrink: 0; }
 
 /* --- Workspace: palette | canvas | inspector ------------------------ */
 .et-workspace {

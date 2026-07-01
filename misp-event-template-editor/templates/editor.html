@@ -19,9 +19,81 @@
   <!-- Envelope + library metadata (task 3.2) -->
   <section class="et-region et-envelope" id="envelope-region">
     <div class="et-region-header"><h2>Template metadata</h2></div>
-    <div class="et-region-body">
-      <p class="et-region-hint">Slug, name, description, <code>misp_default</code> and the
-        <code>library_metadata</code> panel are wired up here.<span class="tasktag">task 3.2</span></p>
+    <div class="et-region-body et-envelope-body">
+
+      <div class="form-row">
+        <div class="form-group flex-1">
+          <label class="form-label" for="env-slug">Slug
+            <span class="tooltip-trigger" data-tooltip="The library directory name (templates/&lt;slug&gt;/definition.json). Lowercase letters, digits and hyphens only. Intentionally separate from the display name — it may differ. Auto-filled from the name until you edit it.">&#9432;</span>
+          </label>
+          <input type="text" id="env-slug" class="form-input" placeholder="e.g. spearphishing-email" autocomplete="off" spellcheck="false">
+          <div class="field-error" id="err-slug"></div>
+        </div>
+        <div class="form-group flex-1">
+          <label class="form-label" for="env-name">Name
+            <span class="tooltip-trigger" data-tooltip="Human-readable template title stored in the JSON (definition.name). Required.">&#9432;</span>
+          </label>
+          <input type="text" id="env-name" class="form-input" placeholder="e.g. Spearphishing email">
+          <div class="field-error" id="err-name"></div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="env-description">Description
+          <span class="tooltip-trigger" data-tooltip="What incident type this template captures and how it is meant to be used. Optional but recommended.">&#9432;</span>
+        </label>
+        <textarea id="env-description" class="form-input form-textarea" rows="2" placeholder="What incident type this template captures…"></textarea>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group flex-1">
+          <label class="form-label" for="env-uuid">UUID
+            <span class="tooltip-trigger" data-tooltip="Stable unique identifier for this template (required, uuid format). Auto-generated for a new template; regenerate only when creating a genuinely new one.">&#9432;</span>
+          </label>
+          <div class="input-group">
+            <input type="text" id="env-uuid" class="form-input" readonly placeholder="Generating…">
+            <button type="button" class="btn btn-small btn-secondary" id="env-uuid-regen">Regenerate</button>
+          </div>
+          <div class="field-error" id="err-uuid"></div>
+        </div>
+        <div class="form-group flex-1 env-flags">
+          <label class="form-label">Library flags</label>
+          <label class="toggle-label" title="Ship this template as a MISP default (misp_default: true).">
+            <input type="checkbox" id="env-misp-default" checked>
+            <span>Ship as MISP default (<code>misp_default</code>)</span>
+            <span class="tooltip-trigger" data-tooltip="Sets misp_default:true — marks this as a template MISP ships/updates from the library by default. New library templates default to on (D9).">&#9432;</span>
+          </label>
+        </div>
+      </div>
+
+      <h3 class="et-subheading">Library metadata</h3>
+
+      <div class="form-group">
+        <label class="form-label" for="lib-compat-version">Compatible MISP version
+          <span class="tooltip-trigger" data-tooltip="Minimum MISP version this template targets, e.g. 2.5.0. Format: major.minor(.patch).">&#9432;</span>
+        </label>
+        <input type="text" id="lib-compat-version" class="form-input compat-input" placeholder="e.g. 2.5.0" autocomplete="off" spellcheck="false">
+        <div class="field-error" id="err-compat-version"></div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Authors
+          <span class="tooltip-trigger" data-tooltip="Who authored this template. Each author needs a name; contact (e.g. an email) is optional. The library review checklist expects at least one before publishing.">&#9432;</span>
+        </label>
+        <div id="authors-container"></div>
+        <button type="button" class="btn btn-small btn-secondary" id="add-author" style="margin-top:8px;">+ Add author</button>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="lib-tags-input">Tags
+          <span class="tooltip-trigger" data-tooltip="Free-text keywords describing the template (e.g. incident-response, phishing). Type a value and press Enter.">&#9432;</span>
+        </label>
+        <div class="tag-input-wrapper" id="lib-tags-wrapper">
+          <div class="tag-list" id="lib-tags-list"></div>
+          <input type="text" class="form-input tag-input" id="lib-tags-input" placeholder="Type and press Enter…">
+        </div>
+      </div>
+
     </div>
   </section>
 
