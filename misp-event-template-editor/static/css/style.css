@@ -1003,3 +1003,21 @@ body {
     margin: 6px 0 2px 22px;
 }
 .et-rel-ov { font-size: 12px; padding: 3px 6px; max-width: 160px; }
+
+/* --- event_defaults info_template builder (task 5.2) --------------- */
+.et-info-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+.et-info-toolbar-label { font-size: 12px; color: var(--text-muted); }
+.et-info-var { font-family: var(--font-mono); }
+.et-info-field-select {
+    width: auto;
+    max-width: 240px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+}
+.et-info-textarea { font-family: var(--font-mono); font-size: 13px; }

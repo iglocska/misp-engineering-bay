@@ -103,6 +103,19 @@
     <div class="et-region-body et-envelope-body">
       <p class="et-region-hint">Defaults applied to the event a user creates from this template.</p>
 
+      {% raw %}
+      <div class="form-group et-info-template-group">
+        <label class="form-label" for="ed-info-template">Info template
+          <span class="tooltip-trigger" data-tooltip="Default event title for events created from this template. Supports {{date}} (today), {{now}} (timestamp), {{user}} (creator) and {{field:<id>}} (value of an element, referenced by its id).">&#9432;</span>
+        </label>
+        <div class="et-info-toolbar" id="ed-info-toolbar"></div>
+        <textarea id="ed-info-template" class="form-input form-textarea et-info-textarea" rows="3" spellcheck="false"
+                  placeholder="e.g. Phishing report — {{date}} (reported by {{user}})"></textarea>
+        <div class="et-field-hint">Plain text plus optional {{date}}, {{now}}, {{user}} and {{field:&lt;id&gt;}} variables. A {{field:…}} reference must match an element id.</div>
+        <div class="field-error" id="err-info-template"></div>
+      </div>
+      {% endraw %}
+
       <div class="form-row">
         <div class="form-group flex-1">
           <label class="form-label" for="ed-distribution">Distribution

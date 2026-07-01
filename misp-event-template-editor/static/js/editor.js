@@ -787,6 +787,9 @@ function applyValidation(res) {
     renderValidationSummary(res);
     renderCanvas();          // repaint per-row error dots
     paintPropertyErrors(res.errors || []);
+    // Refresh the info_template inline status: a {{field:id}} reference can go
+    // dangling when an element is renamed or removed (task 5.2).
+    if (typeof updateInfoTemplateStatus === 'function') updateInfoTemplateStatus();
 }
 
 // Map "$.structure[<i>]..." error paths to element-index counts.
