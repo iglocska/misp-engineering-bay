@@ -97,6 +97,63 @@
     </div>
   </section>
 
+  <!-- Event defaults (task 5.x) -->
+  <section class="et-region et-event-defaults" id="event-defaults-region">
+    <div class="et-region-header"><h2>Event defaults</h2></div>
+    <div class="et-region-body et-envelope-body">
+      <p class="et-region-hint">Defaults applied to the event a user creates from this template.</p>
+
+      <div class="form-row">
+        <div class="form-group flex-1">
+          <label class="form-label" for="ed-distribution">Distribution
+            <span class="tooltip-trigger" data-tooltip="Default distribution of the event created from this template.">&#9432;</span>
+          </label>
+          <select id="ed-distribution" class="form-select">
+            <option value="0">Your organisation only</option>
+            <option value="1">This community only</option>
+            <option value="2">Connected communities</option>
+            <option value="3">All communities</option>
+            <option value="4">Sharing group</option>
+          </select>
+        </div>
+        <div class="form-group flex-1" id="ed-sharing-group-group" style="display:none">
+          <label class="form-label" for="ed-sharing-group">Sharing group ID
+            <span class="tooltip-trigger" data-tooltip="The MISP sharing group id (instance-specific integer). Required when distribution is Sharing group.">&#9432;</span>
+          </label>
+          <input type="number" id="ed-sharing-group" class="form-input" min="1" placeholder="e.g. 3" autocomplete="off">
+          <div class="et-field-hint">Required when distribution is “Sharing group”.</div>
+          <div class="field-error" id="err-sharing-group"></div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group flex-1">
+          <label class="form-label" for="ed-threat-level">Threat level
+            <span class="tooltip-trigger" data-tooltip="Default threat level of the created event. Optional.">&#9432;</span>
+          </label>
+          <select id="ed-threat-level" class="form-select">
+            <option value="">— unset —</option>
+            <option value="1">High</option>
+            <option value="2">Medium</option>
+            <option value="3">Low</option>
+            <option value="4">Undefined</option>
+          </select>
+        </div>
+        <div class="form-group flex-1">
+          <label class="form-label" for="ed-analysis">Analysis
+            <span class="tooltip-trigger" data-tooltip="Default analysis state of the created event. Optional.">&#9432;</span>
+          </label>
+          <select id="ed-analysis" class="form-select">
+            <option value="">— unset —</option>
+            <option value="0">Initial</option>
+            <option value="1">Ongoing</option>
+            <option value="2">Completed</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- Builder workspace: palette | canvas | inspector -->
   <div class="et-workspace">
 
@@ -136,5 +193,6 @@
 <script src="{{ url_for('static', filename='js/common.js') }}"></script>
 <script src="{{ url_for('static', filename='js/reference.js') }}"></script>
 <script src="{{ url_for('static', filename='js/elements.js') }}"></script>
+<script src="{{ url_for('static', filename='js/event-defaults.js') }}"></script>
 <script src="{{ url_for('static', filename='js/editor.js') }}"></script>
 {% endblock %}

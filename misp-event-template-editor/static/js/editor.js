@@ -115,6 +115,9 @@ async function initEditor() {
     bindEnvelope();
     renderEnvelope();
 
+    bindEventDefaults();
+    renderEventDefaults();
+
     renderPalette();
     renderCanvas();
     renderProperties();
