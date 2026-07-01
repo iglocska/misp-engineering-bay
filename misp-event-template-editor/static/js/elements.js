@@ -48,8 +48,8 @@ const ELEMENT_META = {
     object_field:     { label: true,  help: true,  parent: true,  phase: '4.5', extra: 'object-template picker + per-relation overrides, mandatory / repeatable' },
     tag_field:        { label: true,  help: true,  parent: true,  phase: '4.3', extra: 'restrict_taxonomies, multiple, mandatory' },
     galaxy_field:     { label: true,  help: true,  parent: true,  phase: '4.3', extra: 'restrict_galaxy_types, multiple, mandatory' },
-    file_field:       { label: true,  help: true,  parent: true,  phase: '4.4', extra: 'as (attachment / malware-sample), repeatable, mandatory' },
-    event_report:     { label: true,  help: true,  parent: true,  phase: '4.4', extra: 'default_content, mandatory' },
+    file_field:       { label: true,  help: true,  parent: true,  phase: '4.4', extra: null },
+    event_report:     { label: true,  help: true,  parent: true,  phase: '4.4', extra: null },
     object_reference: { label: false, help: false, parent: false, phase: '4.5', extra: 'from / to object_field selectors' },
 };
 
@@ -150,6 +150,8 @@ function renderTypeExtra(el) {
         case 'attribute_field': return renderAttributeField(el);
         case 'tag_field':       return renderTagField(el);
         case 'galaxy_field':    return renderGalaxyField(el);
+        case 'file_field':      return renderFileField(el);
+        case 'event_report':    return renderEventReport(el);
         default: return null;
     }
 }
@@ -178,6 +180,35 @@ function renderAttributeField(el) {
             optional: true, tip: 'Pre-fills the attribute comment when the user submits.' }),
         field('text', 'misp.default_value', 'Default value', misp.default_value || '', {
             optional: true, tip: 'A value pre-filled into the field for the user.' }),
+    ].join('');
+}
+
+// file_field (task 4.4). mandatory / repeatable toggles + an optional `as`
+// enum (how the uploaded file is stored). All plain — bound generically.
+function renderFileField(el) {
+    return [
+        checkboxField('mandatory', 'Mandatory — user must upload a file', !!el.mandatory,
+            'Require a file before the event can be created.'),
+        checkboxField('repeatable', 'Repeatable — user can upload multiple files', !!el.repeatable,
+            'Let the user attach more than one file.'),
+        selectField('as', 'Store uploaded files as', el.as || '', [
+            { value: '', label: '— default (attachment) —' },
+            { value: 'attachment', label: 'attachment — general-purpose file attribute' },
+            { value: 'malware-sample', label: 'malware-sample — encrypted / quarantined sample' },
+        ], { optional: true, tip: 'How an uploaded file is stored on the event. Leave default unless you need malware-sample handling.' }),
+    ].join('');
+}
+
+// event_report (task 4.4). mandatory toggle + optional default_content the user
+// starts editing from. Plain — bound generically.
+function renderEventReport(el) {
+    return [
+        checkboxField('mandatory', 'Mandatory — user must complete the report', !!el.mandatory,
+            'Require the report to be filled before the event can be created.'),
+        field('textarea', 'default_content', 'Default content (Markdown)', el.default_content || '', {
+            optional: true, rows: 6,
+            tip: 'Pre-fills the report body the user starts from. The filled value becomes an EventReport attached to the new event.',
+        }),
     ].join('');
 }
 
@@ -281,6 +312,24 @@ function refSelectField(path, label, tip, hint) {
             <label class="form-label">${escapeHtml(label)}${tipHtml}</label>
             <select class="form-select" data-path="${escapeHtml(path)}" data-et-ref="${escapeHtml(path)}"></select>
             ${hintHtml}
+            <div class="field-error" data-error-for="${escapeHtml(path)}"></div>
+        </div>`;
+}
+
+// A static (non-reference) <select> bound generically via [data-path]. `options`
+// is [{value,label}]; an optional select deletes its key when the blank option
+// is chosen (keeps the canonical doc minimal).
+function selectField(path, label, value, options, opts = {}) {
+    const tip = opts.tip
+        ? ` <span class="tooltip-trigger" data-tooltip="${escapeHtml(opts.tip)}">&#9432;</span>`
+        : '';
+    const optAttr = opts.optional ? ' data-optional="1"' : '';
+    const opers = options.map(o =>
+        `<option value="${escapeHtml(o.value)}"${o.value === value ? ' selected' : ''}>${escapeHtml(o.label)}</option>`).join('');
+    return `
+        <div class="form-group">
+            <label class="form-label">${escapeHtml(label)}${opts.optional ? ' <span class="et-opt">optional</span>' : ''}${tip}</label>
+            <select class="form-select" data-path="${escapeHtml(path)}"${optAttr}>${opers}</select>
             <div class="field-error" data-error-for="${escapeHtml(path)}"></div>
         </div>`;
 }
