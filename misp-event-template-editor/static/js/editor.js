@@ -476,6 +476,94 @@ function onPropertyToggle(el, path, checked, optional) {
 // these handlers see up-to-date element state.
 function setupReferenceControls(mount, el) {
     if (el.type === 'attribute_field') setupAttributeField(mount, el);
+    else if (el.type === 'tag_field') setupMultipicker(mount, el, MP_TAXONOMIES);
+    else if (el.type === 'galaxy_field') setupMultipicker(mount, el, MP_GALAXY_TYPES);
+}
+
+// Multipicker configs: how to load each field's option universe and map the
+// reference records to {value, label} for the datalist. `value` is what gets
+// stored in the array; `label` is the (friendlier) datalist display text.
+const MP_TAXONOMIES = {
+    path: 'restrict_taxonomies',
+    load: () => loadTaxonomies(),
+    items: data => (data || []).map(t => ({ value: t.namespace, label: t.namespace })),
+};
+const MP_GALAXY_TYPES = {
+    path: 'restrict_galaxy_types',
+    load: () => loadGalaxyTypes(),
+    items: data => (data || []).map(g => ({ value: g.type, label: g.name || g.type })),
+};
+
+// Wire a string-array multipicker: fill its datalist from the reference cache
+// and bind add (Enter/comma/datalist-select, restricted to known values) and
+// remove. The array key is created on first add and deleted when it empties, so
+// the canonical doc stays minimal (empty restrict list == "any" == omitted).
+async function setupMultipicker(mount, el, cfg) {
+    const root = mount.querySelector(`[data-et-mp="${cfg.path}"]`);
+    if (!root) return;
+    const input = root.querySelector('[data-et-mp-input]');
+    const datalist = root.querySelector('[data-et-mp-datalist]');
+    const chipsBox = root.querySelector('[data-et-mp-chips]');
+    const box = root.querySelector('[data-et-mp-box]');
+    const anyLabel = root.dataset.etMpAny || '';
+
+    let data;
+    try {
+        data = await cfg.load();
+    } catch (err) {
+        console.warn(`Could not load options for ${cfg.path}:`, err.message);
+        return;
+    }
+    if (selectedElement() !== el) return;        // selection changed while loading
+
+    const items = cfg.items(data);
+    const valid = new Set(items.map(it => it.value));
+    datalist.innerHTML = items.map(it =>
+        `<option value="${escapeHtml(it.value)}">${escapeHtml(it.label)}</option>`).join('');
+
+    const rerender = () => {
+        chipsBox.innerHTML = multipickerChips(el[cfg.path], anyLabel);
+        bindChipRemoval(chipsBox, el, cfg.path, rerender);
+    };
+    bindChipRemoval(chipsBox, el, cfg.path, rerender);
+
+    const tryAdd = () => {
+        const v = input.value.trim();
+        input.value = '';
+        if (!v || !valid.has(v)) return;         // only known (datalist-guided) values
+        const arr = el[cfg.path] || (el[cfg.path] = []);
+        if (!arr.includes(v)) { arr.push(v); rerender(); scheduleValidate(); }
+    };
+    input.addEventListener('keydown', e => {
+        if (e.key === 'Enter' || e.key === ',') {
+            e.preventDefault();
+            tryAdd();
+        } else if (e.key === 'Backspace' && !input.value) {
+            const arr = el[cfg.path];
+            if (Array.isArray(arr) && arr.length) {
+                arr.pop();
+                if (!arr.length) deletePath(el, cfg.path);
+                rerender();
+                scheduleValidate();
+            }
+        }
+    });
+    input.addEventListener('change', tryAdd);     // datalist pick fires change
+    if (box) box.addEventListener('click', () => input.focus());
+}
+
+function bindChipRemoval(chipsBox, el, path, rerender) {
+    chipsBox.querySelectorAll('[data-et-mp-remove]').forEach(x => {
+        x.addEventListener('click', e => {
+            e.stopPropagation();
+            const arr = el[path];
+            if (!Array.isArray(arr)) return;
+            arr.splice(Number(x.dataset.etMpRemove), 1);
+            if (!arr.length) deletePath(el, path);
+            rerender();
+            scheduleValidate();
+        });
+    });
 }
 
 async function setupAttributeField(mount, el) {

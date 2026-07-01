@@ -148,6 +148,8 @@ function field(kind, path, label, value, opts = {}) {
 function renderTypeExtra(el) {
     switch (el.type) {
         case 'attribute_field': return renderAttributeField(el);
+        case 'tag_field':       return renderTagField(el);
+        case 'galaxy_field':    return renderGalaxyField(el);
         default: return null;
     }
 }
@@ -177,6 +179,78 @@ function renderAttributeField(el) {
         field('text', 'misp.default_value', 'Default value', misp.default_value || '', {
             optional: true, tip: 'A value pre-filled into the field for the user.' }),
     ].join('');
+}
+
+// tag_field (task 4.3). mandatory / multiple toggles + a taxonomy-restriction
+// multipicker. An empty restrict list means the user may pick any tag.
+function renderTagField(el) {
+    return [
+        checkboxField('mandatory', 'Mandatory — user must pick a tag', !!el.mandatory,
+            'Require at least one tag before the event can be created.'),
+        checkboxField('multiple', 'Allow multiple tags', !!el.multiple,
+            'Let the user select more than one tag.'),
+        '<hr class="et-sep">',
+        renderMultipicker(el, {
+            path: 'restrict_taxonomies',
+            label: 'Restrict to taxonomies',
+            tip: 'Limit the tag picker to the chosen taxonomy namespaces. Leave empty to allow any tag.',
+            placeholder: 'Type a taxonomy namespace…',
+            hint: 'Empty = any tag. Otherwise restricted to tags from the chosen taxonomies.',
+            anyLabel: '(any taxonomy)',
+        }),
+    ].join('');
+}
+
+// galaxy_field (task 4.3). mandatory / multiple toggles + a galaxy-type
+// restriction multipicker. Empty = the user may pick any cluster.
+function renderGalaxyField(el) {
+    return [
+        checkboxField('mandatory', 'Mandatory — user must pick a cluster', !!el.mandatory,
+            'Require at least one galaxy cluster before the event can be created.'),
+        checkboxField('multiple', 'Allow multiple clusters', !!el.multiple,
+            'Let the user select more than one galaxy cluster.'),
+        '<hr class="et-sep">',
+        renderMultipicker(el, {
+            path: 'restrict_galaxy_types',
+            label: 'Restrict to galaxy types',
+            tip: 'Limit the cluster picker to the chosen galaxy types. Leave empty to allow any cluster.',
+            placeholder: 'Type a galaxy type…',
+            hint: 'Empty = any cluster. Otherwise restricted to clusters from the chosen galaxy types.',
+            anyLabel: '(any galaxy type)',
+        }),
+    ].join('');
+}
+
+// Generic string-array multipicker: removable chips + a datalist-backed search
+// input (reuses the envelope's chip-input look). Options and add/remove wiring
+// are attached by editor.js (setupMultipicker), which owns the reference cache;
+// here we render the shell and the current chips.
+function renderMultipicker(el, cfg) {
+    const listId = `dl-${cfg.path}`;
+    return `
+        <div class="form-group et-multipicker" data-et-mp="${escapeHtml(cfg.path)}"
+             data-et-mp-any="${escapeHtml(cfg.anyLabel)}">
+            <label class="form-label">${escapeHtml(cfg.label)}
+                <span class="tooltip-trigger" data-tooltip="${escapeHtml(cfg.tip)}">&#9432;</span>
+            </label>
+            <div class="tag-input-wrapper" data-et-mp-box>
+                <div class="tag-list" data-et-mp-chips>${multipickerChips(el[cfg.path], cfg.anyLabel)}</div>
+                <input type="text" class="form-input tag-input" list="${escapeHtml(listId)}"
+                       data-et-mp-input placeholder="${escapeHtml(cfg.placeholder)}" autocomplete="off">
+                <datalist id="${escapeHtml(listId)}" data-et-mp-datalist></datalist>
+            </div>
+            <div class="et-field-hint">${escapeHtml(cfg.hint)}</div>
+            <div class="field-error" data-error-for="${escapeHtml(cfg.path)}"></div>
+        </div>`;
+}
+
+// Chip HTML for a string-array value (or the muted "any" hint when empty).
+function multipickerChips(values, anyLabel) {
+    const arr = Array.isArray(values) ? values : [];
+    if (!arr.length) return `<span class="empty-hint" data-et-mp-empty>${escapeHtml(anyLabel)}</span>`;
+    return arr.map((v, i) =>
+        `<span class="tag-item" data-idx="${i}">${escapeHtml(v)}<span class="tag-remove" data-et-mp-remove="${i}" title="Remove">&times;</span></span>`
+    ).join('');
 }
 
 // A boolean toggle bound via [data-path]; marked data-optional so unchecking it

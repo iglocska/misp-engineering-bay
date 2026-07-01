@@ -48,6 +48,16 @@ function typesForCategory(data, category) {
     return (data.category_type_mappings && data.category_type_mappings[category]) || [];
 }
 
+// tag_field restrict_taxonomies picker. Response: [{namespace, description, …}].
+const REF_TAXONOMIES = '/api/taxonomies';
+function loadTaxonomies() { return refGet(REF_TAXONOMIES); }
+function taxonomiesNow() { return refPeek(REF_TAXONOMIES); }
+
+// galaxy_field restrict_galaxy_types picker. Response: [{type, name, namespace, …}].
+const REF_GALAXY_TYPES = '/api/galaxy-types';
+function loadGalaxyTypes() { return refGet(REF_GALAXY_TYPES); }
+function galaxyTypesNow() { return refPeek(REF_GALAXY_TYPES); }
+
 // Warm the caches the editor is likely to need, so the first element selection
 // renders without a fetch round-trip. Best-effort; failures are non-fatal
 // (the editors retry on demand).
