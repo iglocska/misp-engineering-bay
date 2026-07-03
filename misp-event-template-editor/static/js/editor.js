@@ -115,6 +115,8 @@ async function initEditor() {
     bindEnvelope();
     renderEnvelope();
 
+    bindToolbarActions();
+
     bindEventDefaults();
     renderEventDefaults();
 
@@ -931,6 +933,174 @@ function shortPath(path) {
 }
 function cssEscape(s) {
     return String(s).replace(/["\\]/g, '\\$&');
+}
+
+// ==========================================================================
+// Output actions (task 7.2): save draft · export download · persist to library
+//
+// Save is permissive (drafts may be in-progress). Export and Persist are the
+// D8 strict gate: blocked unless the doc passes validation — enforced both
+// client-side (fast feedback on editorState._errors) and server-side (the
+// authoritative gate; the endpoints re-validate and 422 on failure). Persist
+// (private mode only, D4) also confirms an empty authors list (D9).
+// ==========================================================================
+
+function bindToolbarActions() {
+    onClick('btn-save-draft', () => { saveDraft(); });
+    onClick('btn-export', () => { exportTemplate(); });
+    onClick('btn-persist', () => { persistTemplate(); });
+}
+
+// How many validation errors the last server verdict reported (0 if never run).
+function blockingErrorCount() {
+    return Array.isArray(editorState._errors) ? editorState._errors.length : 0;
+}
+
+// Whether the current authors list has at least one named author (D9).
+function hasNamedAuthor() {
+    return (libMeta().authors || []).some(a => a && a.name && a.name.trim());
+}
+
+// Slug pre-check. Export tolerates an empty slug (the server falls back to
+// "definition.json"); save/persist need a directory name. Format is always
+// enforced (mirrors template_store.SLUG_RE; the server is the real gate).
+function ensureSlug(required) {
+    const slug = editorState.slug;
+    if (!slug) {
+        if (required) { showToast('Enter a slug (the library directory name) first', 'error'); return false; }
+        return true;
+    }
+    if (!SLUG_RE.test(slug)) {
+        showToast('Fix the slug format first (lowercase letters, digits and hyphens only)', 'error');
+        return false;
+    }
+    return true;
+}
+
+// --- Save draft (permissive → output/) ------------------------------------
+async function saveDraft() {
+    if (!ensureSlug(true)) return;
+    const slug = editorState.slug;
+    const body = { slug, definition: cleanForOutput(editorState.definition) };
+    try {
+        let res;
+        if (editorState.source === 'user') {
+            // Loaded/last-saved as a draft → update in place.
+            res = await apiSend('PUT', `/api/templates/${encodeURIComponent(slug)}`, body);
+        } else {
+            // New / clone / library-derived → create, falling back to update if a
+            // same-slug draft already exists (server 409).
+            try {
+                res = await apiPost('/api/templates', body);
+            } catch (err) {
+                if (err.status === 409) res = await apiSend('PUT', `/api/templates/${encodeURIComponent(slug)}`, body);
+                else throw err;
+            }
+        }
+        editorState.source = 'user';                 // it now lives in output/
+        if (res && res.validation) applyValidation(res.validation);
+        showToast(`Draft saved: ${slug}`);
+    } catch (err) {
+        showToast(`Could not save draft: ${err.message}`, 'error');
+    }
+}
+
+// --- Export (strict → canonical definition.json download) ------------------
+async function exportTemplate() {
+    if (!ensureSlug(false)) return;
+    await runValidate();                             // freshen the client gate vs the current doc
+    if (blockingErrorCount() > 0) {
+        showToast(`Fix ${blockingErrorCount()} validation error${blockingErrorCount() === 1 ? '' : 's'} before exporting`, 'error');
+        return;
+    }
+    const body = { slug: editorState.slug, definition: cleanForOutput(editorState.definition) };
+    let res;
+    try {
+        res = await fetch('/api/templates/export', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+        });
+    } catch (err) {
+        showToast('Export request failed: ' + err.message, 'error');
+        return;
+    }
+    if (!res.ok) {
+        // Server is the authoritative gate; surface a 422 as validation errors.
+        const data = await res.json().catch(() => null);
+        if (data && Array.isArray(data.errors)) {
+            applyValidation(data);
+            showToast(`Cannot export — ${data.errors.length} validation error${data.errors.length === 1 ? '' : 's'} to fix`, 'error');
+        } else {
+            showToast((data && data.error) || `Export failed (${res.status})`, 'error');
+        }
+        return;
+    }
+    const blob = await res.blob();
+    const fname = filenameFromDisposition(res.headers.get('Content-Disposition'))
+        || (editorState.slug ? `${editorState.slug}-definition.json` : 'definition.json');
+    downloadBlob(blob, fname);
+    showToast(`Exported ${fname}`);
+}
+
+// --- Persist (private mode → misp-event-templates submodule) ---------------
+async function persistTemplate() {
+    if (editorState.mode !== 'private') {
+        showToast('Persist to the library is only available in private mode', 'error');
+        return;
+    }
+    if (!ensureSlug(true)) return;
+    await runValidate();                             // freshen the client gate vs the current doc
+    if (blockingErrorCount() > 0) {
+        showToast(`Fix ${blockingErrorCount()} validation error${blockingErrorCount() === 1 ? '' : 's'} before persisting`, 'error');
+        return;
+    }
+
+    const name = editorState.definition.name || editorState.slug;
+    const target = `templates/${editorState.slug}/definition.json`;
+    let msg = `Write "${name}" directly into the misp-event-templates submodule as ${target}?`;
+    // D9: the library review checklist expects at least one author — make the
+    // author warning an explicit speed bump before writing to the library.
+    if (!hasNamedAuthor()) {
+        msg = 'No authors are listed for this template — the library review checklist expects at least one.\n\n' + msg;
+    }
+    if (!confirm(msg)) return;
+
+    try {
+        const res = await apiPost('/api/templates/persist', {
+            slug: editorState.slug,
+            definition: cleanForOutput(editorState.definition),
+        });
+        applyValidation(res);                        // carries valid/errors/warnings
+        showToast(`Persisted to library: ${target}`);
+    } catch (err) {
+        // 422 → validation errors (uniqueness/schema); 403 → mode/write refusal.
+        if (err.data && Array.isArray(err.data.errors)) {
+            applyValidation(err.data);
+            showToast(`Cannot persist — ${err.data.errors.length} validation error${err.data.errors.length === 1 ? '' : 's'} to fix`, 'error');
+        } else {
+            showToast(`Persist failed: ${err.message}`, 'error');
+        }
+    }
+}
+
+// Trigger a browser download of an in-memory blob.
+function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+}
+
+// Pull the filename out of a Content-Disposition header (attachment; filename="…").
+function filenameFromDisposition(header) {
+    if (!header) return '';
+    const m = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(header);
+    return m ? decodeURIComponent(m[1]) : '';
 }
 
 // --- Tiny DOM helpers (null-safe; some elements are editor-page only) ------

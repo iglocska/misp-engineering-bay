@@ -11,6 +11,15 @@
         (<code>event-template-v1</code>).</p>
     </div>
     <div class="et-toolbar-actions">
+      <button type="button" class="btn btn-secondary" id="btn-save-draft"
+              title="Save the current template as a draft in output/. Drafts may be incomplete — validation is advisory here.">Save draft</button>
+      <button type="button" class="btn btn-secondary" id="btn-export"
+              title="Download the canonical definition.json. Blocked until the template passes validation (D8).">Export</button>
+      {% if mode == 'private' %}
+      <button type="button" class="btn btn-primary" id="btn-persist"
+              style="background: var(--success); border-color: var(--success);"
+              title="Write directly into the misp-event-templates submodule as templates/&lt;slug&gt;/definition.json. Blocked until the template passes validation (D8).">Persist to library</button>
+      {% endif %}
       <span class="mode-badge" id="mode-badge" data-mode="{{ mode }}"
             title="{% if mode == 'private' %}Private mode: can persist to the misp-event-templates submodule{% else %}Public mode: export/download only{% endif %}">{{ mode }}</span>
     </div>
