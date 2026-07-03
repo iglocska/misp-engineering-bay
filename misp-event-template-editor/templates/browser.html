@@ -1,18 +1,53 @@
 {% extends "base.html" %}
 {% block title %}Browse — MISP Event Template Editor{% endblock %}
 {% block content %}
-<section class="browser-shell">
+<section class="browser-shell browser-page">
   <header class="et-toolbar">
     <div class="et-toolbar-titles">
       <h1>Browse Templates</h1>
       <p class="muted">Browse the bundled <code>misp-event-templates</code> library
-        and your local drafts.</p>
+        and your local drafts. Load, clone or edit any of them.</p>
+    </div>
+    <div class="et-toolbar-actions">
+      <a class="btn btn-primary" href="/">+ New template</a>
     </div>
   </header>
-  <div class="placeholder-panel">
-    <p>Library browser — list, filter, load, clone and edit.<span class="tasktag">task 7.1</span></p>
+
+  <div class="browser-controls">
+    <input type="text" id="search-input" class="form-input search-input"
+           placeholder="Search by name, slug, description or tag…" autocomplete="off" spellcheck="false">
+    <select id="source-filter" class="form-select">
+      <option value="">All sources</option>
+      <option value="library">Library</option>
+      <option value="user">Drafts</option>
+    </select>
+    <select id="tag-filter" class="form-select">
+      <option value="">All tags</option>
+    </select>
+    <span id="result-count" class="result-count"></span>
+  </div>
+
+  <div id="templates-grid" class="templates-grid">
+    <div class="loading">Loading templates…</div>
   </div>
 </section>
 
+<!-- Canonical-JSON peek modal -->
+<div id="json-modal" class="modal" hidden>
+  <div class="modal-backdrop"></div>
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 id="modal-title">Template JSON</h2>
+      <button class="btn btn-icon modal-close" title="Close">&times;</button>
+    </div>
+    <pre id="modal-json" class="json-preview"></pre>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="modal-copy">Copy JSON</button>
+      <button class="btn btn-primary" id="modal-clone">Clone to editor</button>
+    </div>
+  </div>
+</div>
+
 <script src="{{ url_for('static', filename='js/common.js') }}"></script>
+<script src="{{ url_for('static', filename='js/browse.js') }}"></script>
 {% endblock %}

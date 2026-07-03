@@ -1223,3 +1223,7 @@ body {
 .etf-chip-locked { border-color: currentColor; }
 
 .etf-footnote { color: var(--text-dim); font-size: 11px; font-style: italic; margin-top: 12px; }
+
+/* --- Browser page: tag chips on cards (task 7.1) ------------------- */
+.template-tags { display: flex; flex-wrap: wrap; gap: 4px; margin: 8px 0; }
+.template-tags:empty { display: none; }

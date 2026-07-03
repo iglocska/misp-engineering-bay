@@ -125,7 +125,11 @@ async function initEditor() {
     // Preview region (task 6.1): live canonical-JSON tab + export-readiness status.
     if (typeof initPreview === 'function') initPreview();
 
-    // Seed a UUID for a brand-new template so the required field is populated.
+    // Load or clone an existing template if the browser linked us here (task 7.1).
+    await maybeLoadFromQuery();
+
+    // Seed a UUID for a brand-new template (or a clone) so the required field is
+    // populated. A loaded template keeps its own uuid.
     if (!editorState.definition.uuid) await regenerateUuid();
 
     scheduleValidate();
@@ -138,6 +142,75 @@ function setMode(mode) {
         badge.dataset.mode = mode;
         badge.textContent = mode;
     }
+}
+
+// --- Load / clone an existing template (task 7.1) --------------------------
+// The browser page links here with ?slug=<slug> (edit in place) or
+// ?clone=<slug> (open a fresh copy). Both fetch the bare definition and hydrate
+// the editor; a clone gets a new name/slug/uuid so it can't collide on persist.
+async function maybeLoadFromQuery() {
+    const params = new URLSearchParams(window.location.search);
+    const cloneSlug = params.get('clone');
+    const editSlug = params.get('slug') || params.get('edit');
+    const slug = cloneSlug || editSlug;
+    if (!slug) return;
+    try {
+        const tpl = await apiGet(`/api/templates/${encodeURIComponent(slug)}`);
+        loadTemplateIntoEditor(tpl, !!cloneSlug);
+        showToast(cloneSlug
+            ? `Cloned "${tpl.name || slug}" — set a new name & slug before saving`
+            : `Editing "${tpl.name || slug}"`);
+    } catch (err) {
+        showToast(`Could not load "${slug}": ${err.message}`, 'error');
+    }
+}
+
+// Backfill the scaffolding the panels bind to (empty optionals the file may omit)
+// without dropping any authored data. cleanForOutput() re-prunes on the way out.
+function normalizeLoaded(def) {
+    def.schema_version = 1;
+    if (!def.event_defaults || typeof def.event_defaults !== 'object') def.event_defaults = { distribution: 0 };
+    if (!Array.isArray(def.structure)) def.structure = [];
+    if (!('description' in def)) def.description = null;
+    const lm = (def.library_metadata && typeof def.library_metadata === 'object') ? def.library_metadata : {};
+    def.library_metadata = {
+        compatible_misp_version: lm.compatible_misp_version || '',
+        authors: Array.isArray(lm.authors) ? lm.authors : [],
+        tags: Array.isArray(lm.tags) ? lm.tags : [],
+    };
+}
+
+function loadTemplateIntoEditor(tpl, isClone) {
+    const source = tpl._source || 'user';
+    const slug = tpl._slug || '';
+
+    // Strip the store's internal keys (_slug/_source) to get the bare definition.
+    const def = {};
+    Object.keys(tpl).forEach(k => { if (!k.startsWith('_')) def[k] = tpl[k]; });
+    normalizeLoaded(def);
+
+    editorState.definition = def;
+    editorState.selectedId = null;
+
+    if (isClone) {
+        def.name = def.name ? `${def.name} (copy)` : '';
+        def.uuid = '';                     // reseeded by initEditor's uuid step
+        editorState.slug = '';
+        editorState.slugTouched = false;
+        editorState.source = 'new';
+        maybeDeriveSlug();                 // derive a slug from the "(copy)" name
+    } else {
+        editorState.slug = slug;
+        editorState.slugTouched = !!slug;  // keep the existing slug, don't auto-derive over it
+        editorState.source = source;
+    }
+
+    // Repaint every region from the freshly-loaded state.
+    renderEnvelope();
+    renderEventDefaults();
+    renderCanvas();
+    renderProperties();
+    if (typeof renderPreview === 'function') renderPreview();
 }
 
 // --- Envelope panel (task 3.2) --------------------------------------------
