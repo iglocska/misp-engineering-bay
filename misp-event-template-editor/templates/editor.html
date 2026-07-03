@@ -226,10 +226,31 @@
         <div class="et-region-body" id="properties-region-body"></div>
       </section>
       <section class="et-region" id="preview-region">
-        <div class="et-region-header"><h2>Preview</h2></div>
-        <div class="et-region-body">
-          <p class="et-region-hint">Live canonical-JSON view, validation status and a
-            read-only user-form preview.<span class="tasktag">task 6.x</span></p>
+        <div class="et-region-header">
+          <h2>Preview</h2>
+          <div class="et-preview-tabs" id="preview-tabs" role="tablist">
+            <button type="button" class="et-tab active" data-preview-tab="json"
+                    role="tab" aria-selected="true">JSON</button>
+            <button type="button" class="et-tab" data-preview-tab="form"
+                    role="tab" aria-selected="false">Form<span class="tasktag">6.2</span></button>
+          </div>
+        </div>
+        <div class="et-region-body et-preview-body">
+          <div class="et-preview-status et-status-pending" id="preview-status"></div>
+
+          <div class="et-preview-panel" data-preview-panel="json">
+            <div class="et-json-toolbar">
+              <span class="et-json-meta" id="preview-json-meta"></span>
+              <button type="button" class="btn btn-small btn-secondary" id="preview-json-copy"
+                      title="Copy the canonical JSON to the clipboard">Copy</button>
+            </div>
+            <pre class="et-json-preview" id="preview-json" tabindex="0"></pre>
+          </div>
+
+          <div class="et-preview-panel" data-preview-panel="form" hidden>
+            <p class="et-region-hint">Read-only preview of the form a template user
+              would fill.<span class="tasktag">task 6.2</span></p>
+          </div>
         </div>
       </section>
     </div>
@@ -241,5 +262,6 @@
 <script src="{{ url_for('static', filename='js/reference.js') }}"></script>
 <script src="{{ url_for('static', filename='js/elements.js') }}"></script>
 <script src="{{ url_for('static', filename='js/event-defaults.js') }}"></script>
+<script src="{{ url_for('static', filename='js/preview.js') }}"></script>
 <script src="{{ url_for('static', filename='js/editor.js') }}"></script>
 {% endblock %}

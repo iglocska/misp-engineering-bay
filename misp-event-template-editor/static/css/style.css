@@ -1052,3 +1052,66 @@ body {
 }
 .et-locked-toggle { margin: 0; font-size: 12px; flex-shrink: 0; }
 .et-locked-row .et-locked-remove { flex-shrink: 0; }
+
+/* === Event Template Editor — preview region (task 6.1) =============== */
+/* Tab bar in the Preview region header */
+.et-preview-tabs { display: flex; gap: 2px; }
+.et-tab {
+    font: inherit;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius-sm);
+    padding: 3px 10px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+}
+.et-tab:hover { color: var(--text); background: var(--bg-surface-hover); }
+.et-tab.active { color: var(--primary); background: var(--primary-bg); border-color: var(--primary); }
+.et-tab .tasktag { margin-left: 6px; }
+
+.et-preview-body { display: flex; flex-direction: column; gap: 12px; }
+.et-preview-panel[hidden] { display: none; }
+
+/* Export-readiness status panel (D8 gate verdict) */
+.et-preview-status {
+    padding: 8px 10px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    font-size: 12px;
+    line-height: 1.5;
+}
+.et-preview-status.et-status-pending { color: var(--text-muted); }
+.et-preview-status.et-status-ok { background: var(--success-bg); border-color: transparent; color: var(--success); }
+.et-preview-status.et-status-bad { background: var(--danger-bg); border-color: transparent; color: var(--danger); }
+.et-status-line { font-weight: 600; }
+.et-status-icon { font-weight: 700; margin-right: 2px; }
+.et-status-warn { color: var(--warning); font-weight: 500; margin-top: 4px; }
+
+/* JSON preview tab */
+.et-json-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+.et-json-meta { font-family: var(--font-mono); font-size: 11px; color: var(--text-dim); }
+.et-json-preview {
+    margin: 0;
+    padding: 12px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-family: var(--font-mono);
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--text);
+    white-space: pre;
+    overflow: auto;
+    max-height: 460px;
+    tab-size: 2;
+}

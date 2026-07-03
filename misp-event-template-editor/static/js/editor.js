@@ -122,6 +122,9 @@ async function initEditor() {
     renderCanvas();
     renderProperties();
 
+    // Preview region (task 6.1): live canonical-JSON tab + export-readiness status.
+    if (typeof initPreview === 'function') initPreview();
+
     // Seed a UUID for a brand-new template so the required field is populated.
     if (!editorState.definition.uuid) await regenerateUuid();
 
@@ -767,6 +770,9 @@ function fillOptions(sel, values, current, placeholder) {
 let _validateTimer = null;
 
 function scheduleValidate() {
+    // The JSON preview is local + cheap, so refresh it immediately on every edit
+    // (all mutations funnel through here); the server validation stays debounced.
+    if (typeof renderPreviewJson === 'function') renderPreviewJson();
     clearTimeout(_validateTimer);
     _validateTimer = setTimeout(runValidate, 350);
 }
@@ -790,6 +796,8 @@ function applyValidation(res) {
     // Refresh the info_template inline status: a {{field:id}} reference can go
     // dangling when an element is renamed or removed (task 5.2).
     if (typeof updateInfoTemplateStatus === 'function') updateInfoTemplateStatus();
+    // Refresh the Preview region's export-readiness status (task 6.1).
+    if (typeof updatePreviewStatus === 'function') updatePreviewStatus(res);
 }
 
 // Map "$.structure[<i>]..." error paths to element-index counts.
