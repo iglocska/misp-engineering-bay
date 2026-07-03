@@ -31,6 +31,8 @@ function renderEventDefaults() {
     setVal('ed-info-template', ed.info_template != null ? ed.info_template : '');
     updateSharingGroupVisibility();
     updateInfoTemplateStatus();
+    renderDefaultTags();
+    renderDefaultGalaxyClusters();
 }
 
 function bindEventDefaults() {
@@ -55,6 +57,8 @@ function bindEventDefaults() {
     onChange('ed-analysis', e => setOptionalIntDefault('analysis', e.target.value));
     onInput('ed-info-template', e => commitInfoTemplate(e.target.value));
     renderInfoToolbar();
+    setupDefaultTags();
+    setupDefaultGalaxyClusters();
 }
 
 // Optional integer scalar: blank option deletes the key, otherwise store the int.
@@ -192,4 +196,173 @@ function updateInfoTemplateStatus() {
     const err = document.getElementById('err-info-template');
     if (!err) return;
     err.textContent = infoTemplateProblems((eventDefaults().info_template) || '').join(' ');
+}
+
+// ==========================================================================
+// Default tags + galaxy_clusters pickers (task 5.3, D6)
+// ==========================================================================
+// Both are arrays of {…, locked} objects. `locked` is written EXPLICITLY (even
+// when false) because every bundled library template carries `locked:false`;
+// keeping it explicit round-trips those files byte-identically (omitting it on
+// load+resave would produce a canonical diff). Each array is created on first
+// add and its key deleted when it empties, so an untouched template stays minimal.
+
+// --- Shared row rendering: a name/label, a locked toggle, a remove button. ---
+function lockedRowsHtml(entries, labelFn, emptyMsg) {
+    if (!entries.length) return `<p class="empty-hint">${escapeHtml(emptyMsg)}</p>`;
+    return entries.map((e, i) => `
+        <div class="et-locked-row" data-idx="${i}">
+            <span class="et-locked-name" title="${escapeHtml(labelFn(e))}">${escapeHtml(labelFn(e))}</span>
+            <label class="toggle-label et-locked-toggle" title="Locked: the form user cannot remove this from the event.">
+                <input type="checkbox" class="et-lock-cb"${e.locked ? ' checked' : ''}>
+                <span>locked</span>
+            </label>
+            <button type="button" class="btn btn-icon btn-danger et-locked-remove" title="Remove">&times;</button>
+        </div>`).join('');
+}
+
+// Wire an entries list's per-row locked toggle (mutate in place, no re-render so
+// focus/scroll is kept) and remove (splice; delete the array key when empty).
+function bindLockedRows(mount, arr, rerender, onEmpty) {
+    mount.querySelectorAll('.et-locked-row').forEach(row => {
+        const i = Number(row.dataset.idx);
+        const cb = row.querySelector('.et-lock-cb');
+        if (cb) cb.addEventListener('change', () => { arr[i].locked = cb.checked; scheduleValidate(); });
+        const rm = row.querySelector('.et-locked-remove');
+        if (rm) rm.addEventListener('click', () => {
+            arr.splice(i, 1);
+            if (!arr.length) onEmpty();
+            rerender();
+            scheduleValidate();
+        });
+    });
+}
+
+// --- Default tags ----------------------------------------------------------
+function renderDefaultTags() {
+    const mount = document.getElementById('ed-tags-list');
+    if (!mount) return;
+    const tags = eventDefaults().tags || [];
+    mount.innerHTML = lockedRowsHtml(tags, t => t.name, 'No default tags — events start untagged.');
+    bindLockedRows(mount, tags, renderDefaultTags, () => { delete eventDefaults().tags; });
+}
+
+function setupDefaultTags() {
+    const nsSel = document.getElementById('ed-tag-namespace');
+    if (nsSel) {
+        loadTaxonomies()
+            .then(list => {
+                if (!Array.isArray(list)) return;
+                nsSel.innerHTML = '<option value="">— taxonomy —</option>' +
+                    list.map(t => `<option value="${escapeHtml(t.namespace)}">${escapeHtml(t.namespace)}</option>`).join('');
+            })
+            .catch(err => console.warn('Could not load taxonomies:', err.message));
+        nsSel.addEventListener('change', () => fillTagDatalist(nsSel.value));
+    }
+    onClick('ed-tag-add', addDefaultTagFromInput);
+    onKeydownEnter('ed-tag-input', addDefaultTagFromInput);
+}
+
+// Populate the tag input's datalist with the selected taxonomy's machine tags.
+function fillTagDatalist(namespace) {
+    const dl = document.getElementById('ed-tag-datalist');
+    if (!dl) return;
+    if (!namespace) { dl.innerHTML = ''; return; }
+    loadTaxonomyTags(namespace)
+        .then(res => {
+            const tags = (res && res.tags) || [];
+            dl.innerHTML = tags.map(t =>
+                `<option value="${escapeHtml(t.tag)}">${escapeHtml(t.expanded || t.description || '')}</option>`).join('');
+        })
+        .catch(err => console.warn(`Could not load tags for ${namespace}:`, err.message));
+}
+
+function addDefaultTagFromInput() {
+    const input = document.getElementById('ed-tag-input');
+    if (!input) return;
+    const name = input.value.trim();
+    input.value = '';
+    if (!name) return;
+    const ed = eventDefaults();
+    const arr = ed.tags || (ed.tags = []);
+    if (!arr.some(t => t.name === name)) {
+        arr.push({ name: name, locked: false });
+        renderDefaultTags();
+        scheduleValidate();
+    }
+    input.focus();
+}
+
+// --- Default galaxy clusters ----------------------------------------------
+function renderDefaultGalaxyClusters() {
+    const mount = document.getElementById('ed-gc-list');
+    if (!mount) return;
+    const clusters = eventDefaults().galaxy_clusters || [];
+    mount.innerHTML = lockedRowsHtml(clusters, c => `${c.galaxy_type}: ${c.value}`,
+        'No default galaxy clusters.');
+    bindLockedRows(mount, clusters, renderDefaultGalaxyClusters, () => { delete eventDefaults().galaxy_clusters; });
+}
+
+function setupDefaultGalaxyClusters() {
+    const typeSel = document.getElementById('ed-gc-type');
+    const input = document.getElementById('ed-gc-input');
+    if (typeSel) {
+        loadGalaxyTypes()
+            .then(list => {
+                if (!Array.isArray(list)) return;
+                typeSel.innerHTML = '<option value="">— galaxy type —</option>' +
+                    list.map(g => `<option value="${escapeHtml(g.type)}">${escapeHtml(g.name || g.type)}</option>`).join('');
+            })
+            .catch(err => console.warn('Could not load galaxy types:', err.message));
+        typeSel.addEventListener('change', () => {
+            fillClusterDatalist(typeSel.value);
+            if (input) {                        // galaxy_type is required — gate the value input on it
+                input.disabled = !typeSel.value;
+                input.placeholder = typeSel.value ? 'cluster value…' : 'select a galaxy type first';
+            }
+        });
+    }
+    onClick('ed-gc-add', addDefaultClusterFromInput);
+    onKeydownEnter('ed-gc-input', addDefaultClusterFromInput);
+}
+
+// Populate the cluster input's datalist with the selected galaxy type's values.
+function fillClusterDatalist(type) {
+    const dl = document.getElementById('ed-gc-datalist');
+    if (!dl) return;
+    if (!type) { dl.innerHTML = ''; return; }
+    loadGalaxyClusters(type)
+        .then(res => {
+            const clusters = (res && res.clusters) || [];
+            dl.innerHTML = clusters.map(c =>
+                `<option value="${escapeHtml(c.value)}">${escapeHtml((c.description || '').slice(0, 80))}</option>`).join('');
+        })
+        .catch(err => console.warn(`Could not load clusters for ${type}:`, err.message));
+}
+
+function addDefaultClusterFromInput() {
+    const typeSel = document.getElementById('ed-gc-type');
+    const input = document.getElementById('ed-gc-input');
+    if (!typeSel || !input) return;
+    const galaxyType = typeSel.value;
+    const value = input.value.trim();
+    if (!galaxyType || !value) return;          // both required by the schema
+    input.value = '';
+    const ed = eventDefaults();
+    const arr = ed.galaxy_clusters || (ed.galaxy_clusters = []);
+    if (!arr.some(c => c.galaxy_type === galaxyType && c.value === value)) {
+        arr.push({ galaxy_type: galaxyType, value: value, locked: false });
+        renderDefaultGalaxyClusters();
+        scheduleValidate();
+    }
+    input.focus();
+}
+
+// Small helper: run fn on Enter in a text input (preventing form-ish submit).
+function onKeydownEnter(id, fn) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); fn(); }
+    });
 }

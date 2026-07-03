@@ -1021,3 +1021,34 @@ body {
     font-size: 12px;
 }
 .et-info-textarea { font-family: var(--font-mono); font-size: 13px; }
+
+/* --- event_defaults default tags / galaxy_clusters pickers (task 5.3) --- */
+.et-picker-add {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+.et-picker-source { width: auto; max-width: 200px; }
+.et-picker-value { flex: 1; min-width: 160px; }
+.et-locked-rows { display: flex; flex-direction: column; gap: 4px; }
+.et-locked-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 5px 8px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+}
+.et-locked-name {
+    flex: 1;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.et-locked-toggle { margin: 0; font-size: 12px; flex-shrink: 0; }
+.et-locked-row .et-locked-remove { flex-shrink: 0; }

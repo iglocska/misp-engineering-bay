@@ -53,10 +53,20 @@ const REF_TAXONOMIES = '/api/taxonomies';
 function loadTaxonomies() { return refGet(REF_TAXONOMIES); }
 function taxonomiesNow() { return refPeek(REF_TAXONOMIES); }
 
+// event_defaults default-tags picker: a taxonomy expanded to concrete machine
+// tags. Cached per-namespace (the path carries the namespace). Response:
+// {namespace, tags:[{tag, expanded, description, colour}]}.
+function loadTaxonomyTags(namespace) { return refGet(`/api/taxonomies/${encodeURIComponent(namespace)}`); }
+
 // galaxy_field restrict_galaxy_types picker. Response: [{type, name, namespace, …}].
 const REF_GALAXY_TYPES = '/api/galaxy-types';
 function loadGalaxyTypes() { return refGet(REF_GALAXY_TYPES); }
 function galaxyTypesNow() { return refPeek(REF_GALAXY_TYPES); }
+
+// event_defaults default-galaxy-clusters picker: the cluster values for a galaxy
+// type. Cached per-type (the query is part of the path). Response:
+// {type, clusters:[{value, description, uuid}]}.
+function loadGalaxyClusters(type) { return refGet(`/api/galaxy-clusters?type=${encodeURIComponent(type)}`); }
 
 // object_field template picker. Index: [{uuid, name, version, meta_category, …}].
 const REF_OBJECT_TEMPLATES = '/api/object-templates';
