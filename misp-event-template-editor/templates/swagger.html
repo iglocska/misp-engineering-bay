@@ -1,15 +1,56 @@
 {% extends "base.html" %}
 {% block title %}API Docs — MISP Event Template Editor{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='vendor/swagger-ui.css') }}">
+<style>
+  /* Mount Swagger UI as a contained, light card so it reads cleanly against
+     either theme (Swagger UI ships its own light styling). */
+  #swagger-ui {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  #swagger-ui .topbar { display: none; }        /* hide the spec-URL bar */
+  #swagger-ui .information-container { padding-top: 20px; }
+</style>
+{% endblock %}
+
 {% block content %}
 <section class="docs-shell">
   <header class="et-toolbar">
     <div class="et-toolbar-titles">
       <h1>API Documentation</h1>
-      <p class="muted">Interactive REST API reference (Swagger UI).</p>
+      <p class="muted">Interactive REST API reference for the event-template editor,
+        served offline from the bundled <code>openapi.json</code>.</p>
+    </div>
+    <div class="et-toolbar-actions">
+      <a class="btn btn-secondary" href="{{ url_for('static', filename='openapi.json') }}"
+         target="_blank" rel="noopener" title="Open the raw OpenAPI 3.0 spec">openapi.json</a>
     </div>
   </header>
-  <div class="placeholder-panel">
-    <p>Swagger UI mounted from <code>openapi.json</code>.<span class="tasktag">task 8.1</span></p>
-  </div>
+
+  <div id="swagger-ui"></div>
 </section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/swagger-ui-bundle.js') }}"></script>
+<script>
+  window.addEventListener('load', function () {
+    SwaggerUIBundle({
+      url: "{{ url_for('static', filename='openapi.json') }}",
+      dom_id: '#swagger-ui',
+      deepLinking: true,
+      docExpansion: 'list',
+      defaultModelsExpandDepth: 0,
+      presets: [
+        SwaggerUIBundle.presets.apis,
+        SwaggerUIBundle.SwaggerUIStandalonePreset
+      ],
+      layout: "BaseLayout"
+    });
+  });
+</script>
 {% endblock %}

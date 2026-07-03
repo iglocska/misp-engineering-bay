@@ -1,0 +1,710 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "MISP Event Template Editor API",
+    "description": "REST API for authoring, validating, previewing, and exporting MISP event templates (the `event-template-v1` construct). All reference data is served offline from bundled submodules (misp-objects, misp-galaxy, misp-taxonomies) and a bundled describeTypes.json snapshot — the API never contacts a live MISP instance.\n\nThe canonical artifact is a bare library `definition.json` laid out as `templates/<slug>/definition.json`. Drafts saved to `output/` are permissive; **export and persist are blocked unless the definition passes both structural (schema) and semantic validation** (decision D8). Persisting to the misp-event-templates submodule is only available when the server runs in `private` mode (decision D4).",
+    "version": "1.0.0",
+    "license": {
+      "name": "BSD-2-Clause"
+    }
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "Local development server"
+    }
+  ],
+  "tags": [
+    { "name": "Configuration", "description": "Runtime configuration exposed to the UI" },
+    { "name": "Reference data", "description": "Offline MISP reference data (types, object templates, taxonomies, galaxies)" },
+    { "name": "Templates", "description": "Browse, load, and manage event-template drafts" },
+    { "name": "Validation", "description": "Two-layer (structural + semantic) validation" },
+    { "name": "Persistence", "description": "Export and persist the canonical definition.json (strict-valid gate, D8)" },
+    { "name": "Utility", "description": "Utility endpoints" }
+  ],
+  "paths": {
+    "/api/config": {
+      "get": {
+        "tags": ["Configuration"],
+        "summary": "Get runtime configuration",
+        "description": "Returns non-sensitive configuration. `mode` gates the persist capability (`private` can write to the misp-event-templates submodule; `public` is export/download only).",
+        "operationId": "getConfig",
+        "responses": {
+          "200": {
+            "description": "Configuration",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Config" },
+                "example": { "mode": "public" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/describe-types": {
+      "get": {
+        "tags": ["Reference data"],
+        "summary": "Get the full MISP type system",
+        "description": "The complete describeTypes payload: all attribute types, categories, category→type mappings, and per-type sane defaults. Backs the attribute_field editor and the category+type semantic check.",
+        "operationId": "getDescribeTypes",
+        "responses": {
+          "200": {
+            "description": "Full describeTypes payload",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "types": { "type": "array", "items": { "type": "string" } },
+                    "categories": { "type": "array", "items": { "type": "string" } },
+                    "category_type_mappings": {
+                      "type": "object",
+                      "additionalProperties": { "type": "array", "items": { "type": "string" } }
+                    },
+                    "sane_defaults": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "object",
+                        "properties": {
+                          "default_category": { "type": "string" },
+                          "to_ids": { "type": "integer" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/attribute-categories": {
+      "get": {
+        "tags": ["Reference data"],
+        "summary": "Get category→type mappings and sane defaults",
+        "description": "The subset of describeTypes the attribute_field editor needs: the category list, category→type mappings for the dependent dropdowns, and per-type sane defaults.",
+        "operationId": "getAttributeCategories",
+        "responses": {
+          "200": {
+            "description": "Category/type reference data",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "categories": { "type": "array", "items": { "type": "string" } },
+                    "category_type_mappings": {
+                      "type": "object",
+                      "additionalProperties": { "type": "array", "items": { "type": "string" } }
+                    },
+                    "sane_defaults": { "type": "object" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/object-templates": {
+      "get": {
+        "tags": ["Reference data"],
+        "summary": "List installed object templates",
+        "description": "Summary index of every object template in the misp-objects submodule, for the object_field template picker.",
+        "operationId": "listObjectTemplates",
+        "responses": {
+          "200": {
+            "description": "Object template summaries",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/ObjectTemplateSummary" } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/object-templates/{uuid}": {
+      "get": {
+        "tags": ["Reference data"],
+        "summary": "Get one object template with its relations",
+        "description": "Full detail for a single object template — including its `relations` (attributes), `required`, and `requiredOneOf` — used to build the object_field relations panel.",
+        "operationId": "getObjectTemplate",
+        "parameters": [
+          {
+            "name": "uuid",
+            "in": "path",
+            "required": true,
+            "description": "Object template UUID",
+            "schema": { "type": "string", "format": "uuid" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Object template detail",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ObjectTemplateDetail" } }
+            }
+          },
+          "404": {
+            "description": "No object template with that UUID",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          }
+        }
+      }
+    },
+    "/api/taxonomies": {
+      "get": {
+        "tags": ["Reference data"],
+        "summary": "List taxonomy namespaces",
+        "description": "Namespace summary list from the misp-taxonomies submodule, for the tag_field `restrict_taxonomies` picker and the default-tags autocomplete.",
+        "operationId": "listTaxonomies",
+        "responses": {
+          "200": {
+            "description": "Taxonomy summaries",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/Taxonomy" } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/taxonomies/{namespace}": {
+      "get": {
+        "tags": ["Reference data"],
+        "summary": "Get expanded machine tags for a taxonomy",
+        "description": "The expanded machine tags of a single taxonomy namespace (e.g. `tlp`, `admiralty-scale`), for the default-tags datalist autocomplete.",
+        "operationId": "getTaxonomyTags",
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "description": "Taxonomy namespace",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Expanded machine tags",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "namespace": { "type": "string" },
+                    "tags": { "type": "array", "items": { "$ref": "#/components/schemas/TaxonomyTag" } }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Unknown namespace",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          }
+        }
+      }
+    },
+    "/api/galaxy-types": {
+      "get": {
+        "tags": ["Reference data"],
+        "summary": "List galaxy types",
+        "description": "All galaxy types from the misp-galaxy submodule, for the galaxy_field `restrict_galaxy_types` picker and the default galaxy-cluster picker.",
+        "operationId": "listGalaxyTypes",
+        "responses": {
+          "200": {
+            "description": "Galaxy types",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/GalaxyType" } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/galaxy-clusters": {
+      "get": {
+        "tags": ["Reference data"],
+        "summary": "List cluster values for a galaxy type",
+        "description": "The cluster values of one galaxy type (lazy-loaded per type — some are large, e.g. threat-actor). Used to autocomplete a default galaxy cluster's value.",
+        "operationId": "listGalaxyClusters",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "query",
+            "required": true,
+            "description": "Galaxy type (e.g. `threat-actor`)",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Cluster values",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "type": { "type": "string" },
+                    "clusters": { "type": "array", "items": { "$ref": "#/components/schemas/GalaxyCluster" } }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Missing `type` query parameter",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          }
+        }
+      }
+    },
+    "/api/templates/validate": {
+      "post": {
+        "tags": ["Validation"],
+        "summary": "Validate a definition (two-layer)",
+        "description": "Runs both structural (JSON Schema) and semantic checks. Draft-permissive: always returns 200 with the result in the body (`valid`, `errors`, `warnings`) — it never rejects the request. This is the same verdict the export/persist strict gate enforces.",
+        "operationId": "validateTemplate",
+        "requestBody": {
+          "required": true,
+          "description": "The bare event-template-v1 definition to validate.",
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/Definition" } }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Validation result",
+            "content": {
+              "application/json": { "schema": { "$ref": "#/components/schemas/ValidationResult" } }
+            }
+          },
+          "400": {
+            "description": "Request body was not valid JSON",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          }
+        }
+      }
+    },
+    "/api/templates": {
+      "get": {
+        "tags": ["Templates"],
+        "summary": "List templates (library + drafts)",
+        "description": "Merged list of bundled library templates and user drafts (a draft shadows a same-slug library template). Optional case-insensitive filters.",
+        "operationId": "listTemplates",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "query",
+            "required": false,
+            "description": "Substring filter on the template name",
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "required": false,
+            "description": "Substring filter on library_metadata tags",
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Template summaries",
+            "content": {
+              "application/json": {
+                "schema": { "type": "array", "items": { "$ref": "#/components/schemas/TemplateSummary" } }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["Templates"],
+        "summary": "Create a draft",
+        "description": "Save a new draft to `output/`. Permissive — the definition may be incomplete/invalid (validation is returned advisorily). Fails with 409 if a draft with that slug already exists (use PUT to update).",
+        "operationId": "createTemplate",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": { "schema": { "$ref": "#/components/schemas/SaveRequest" } }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Draft saved",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SaveResponse" } } }
+          },
+          "400": {
+            "description": "Missing/invalid `definition` or an invalid slug",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          },
+          "409": {
+            "description": "A draft with that slug already exists",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          }
+        }
+      }
+    },
+    "/api/templates/{slug}": {
+      "get": {
+        "tags": ["Templates"],
+        "summary": "Load a template by slug",
+        "description": "Return the bare definition for a slug (user draft first, then bundled library), plus the store's `_source` and `_slug` markers.",
+        "operationId": "getTemplate",
+        "parameters": [ { "$ref": "#/components/parameters/Slug" } ],
+        "responses": {
+          "200": {
+            "description": "Template definition (with _source/_slug)",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Definition" } } }
+          },
+          "400": {
+            "description": "Invalid slug",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          },
+          "404": {
+            "description": "No template with that slug",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          }
+        }
+      },
+      "put": {
+        "tags": ["Templates"],
+        "summary": "Update (or create) a draft",
+        "description": "Write the draft at this slug to `output/`. Permissive, like POST; always writes (creates the slug's draft if it did not exist).",
+        "operationId": "updateTemplate",
+        "parameters": [ { "$ref": "#/components/parameters/Slug" } ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SaveRequest" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "Draft saved",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SaveResponse" } } }
+          },
+          "400": {
+            "description": "Missing/invalid `definition` or an invalid slug",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Templates"],
+        "summary": "Delete a draft",
+        "description": "Delete a user draft from `output/`. Refuses (403) to delete a bundled library template that has no draft override.",
+        "operationId": "deleteTemplate",
+        "parameters": [ { "$ref": "#/components/parameters/Slug" } ],
+        "responses": {
+          "200": {
+            "description": "Draft deleted",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Message" } } }
+          },
+          "400": {
+            "description": "Invalid slug",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          },
+          "403": {
+            "description": "Refused — this is a bundled library template",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          },
+          "404": {
+            "description": "No draft with that slug in output/",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          }
+        }
+      }
+    },
+    "/api/templates/persist": {
+      "post": {
+        "tags": ["Persistence"],
+        "summary": "Persist to the library submodule (private mode)",
+        "description": "Write the canonical `templates/<slug>/definition.json` directly into the misp-event-templates submodule. **Private mode only** (403 otherwise). **Strict gate (D8):** the definition must pass validation AND slug/name/uuid uniqueness against the bundled library, else 422.",
+        "operationId": "persistTemplate",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SaveRequest" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "Persisted",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/PersistResponse" } } }
+          },
+          "400": {
+            "description": "Missing/invalid `definition` or an invalid slug",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          },
+          "403": {
+            "description": "Not in private mode, or the write was refused",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          },
+          "422": {
+            "description": "Validation or uniqueness check failed",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ValidationResult" } } }
+          }
+        }
+      }
+    },
+    "/api/templates/export": {
+      "post": {
+        "tags": ["Persistence"],
+        "summary": "Export the canonical definition.json for download",
+        "description": "Return the canonical (jq -S-equivalent, sorted-keys, UTF-8, trailing-newline) `definition.json` as a file attachment. **Strict gate (D8):** blocked with 422 unless the definition passes validation. The filename is `<slug>-definition.json` when a slug is supplied, else `definition.json`.",
+        "operationId": "exportTemplate",
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/SaveRequest" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "Canonical definition.json as a download",
+            "headers": {
+              "Content-Disposition": {
+                "description": "attachment; filename=\"<slug>-definition.json\"",
+                "schema": { "type": "string" }
+              }
+            },
+            "content": {
+              "application/json": { "schema": { "type": "string", "format": "binary" } }
+            }
+          },
+          "400": {
+            "description": "Missing/invalid `definition` or an invalid slug",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          },
+          "422": {
+            "description": "Validation failed — export blocked",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ValidationResult" } } }
+          }
+        }
+      }
+    },
+    "/api/uuid": {
+      "get": {
+        "tags": ["Utility"],
+        "summary": "Generate a fresh UUID",
+        "description": "Return a new random UUID (v4) for seeding a new template's `uuid` field.",
+        "operationId": "generateUuid",
+        "responses": {
+          "200": {
+            "description": "A fresh UUID",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "uuid": { "type": "string", "format": "uuid" } }
+                },
+                "example": { "uuid": "80f290d5-b99e-40ab-a843-4357c1757f2b" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "parameters": {
+      "Slug": {
+        "name": "slug",
+        "in": "path",
+        "required": true,
+        "description": "Template directory name: lowercase letters, digits and single hyphens (`^[a-z0-9]+(-[a-z0-9]+)*$`).",
+        "schema": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" }
+      }
+    },
+    "schemas": {
+      "Config": {
+        "type": "object",
+        "properties": {
+          "mode": { "type": "string", "enum": ["public", "private"], "description": "public = export/download only; private = can also persist to the submodule" }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "properties": { "error": { "type": "string" } }
+      },
+      "Message": {
+        "type": "object",
+        "properties": { "message": { "type": "string" } }
+      },
+      "ValidationMessage": {
+        "type": "object",
+        "properties": {
+          "path": { "type": "string", "description": "JSON path to the offending node, e.g. $.structure[3].misp", "example": "$.name" },
+          "message": { "type": "string" },
+          "severity": { "type": "string", "enum": ["error", "warning"] }
+        }
+      },
+      "ValidationResult": {
+        "type": "object",
+        "properties": {
+          "valid": { "type": "boolean", "description": "true when there are zero errors (warnings do not affect it)" },
+          "errors": { "type": "array", "items": { "$ref": "#/components/schemas/ValidationMessage" } },
+          "warnings": { "type": "array", "items": { "$ref": "#/components/schemas/ValidationMessage" } }
+        }
+      },
+      "Definition": {
+        "type": "object",
+        "description": "The bare event-template-v1 library document. Validated against schema_event_template.json (the CI gate). Only the top-level shape is shown here.",
+        "required": ["schema_version", "uuid", "name", "event_defaults", "structure"],
+        "properties": {
+          "schema_version": { "type": "integer", "enum": [1] },
+          "uuid": { "type": "string", "format": "uuid" },
+          "name": { "type": "string", "minLength": 1 },
+          "description": { "type": "string", "nullable": true },
+          "misp_default": { "type": "boolean" },
+          "library_metadata": {
+            "type": "object",
+            "properties": {
+              "compatible_misp_version": { "type": "string", "pattern": "^\\d+\\.\\d+(\\.\\d+)?$" },
+              "authors": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": ["name"],
+                  "properties": { "name": { "type": "string" }, "contact": { "type": "string" } }
+                }
+              },
+              "tags": { "type": "array", "items": { "type": "string" } }
+            }
+          },
+          "event_defaults": {
+            "type": "object",
+            "properties": {
+              "info_template": { "type": "string" },
+              "distribution": { "type": "integer", "minimum": 0, "maximum": 4 },
+              "sharing_group_id": { "type": "integer", "nullable": true },
+              "threat_level_id": { "type": "integer", "minimum": 1, "maximum": 4 },
+              "analysis": { "type": "integer", "minimum": 0, "maximum": 2 },
+              "tags": { "type": "array", "items": { "type": "object" } },
+              "galaxy_clusters": { "type": "array", "items": { "type": "object" } }
+            }
+          },
+          "structure": {
+            "type": "array",
+            "description": "The ordered elements. One of 9 types (section, text_block, attribute_field, object_field, tag_field, galaxy_field, file_field, event_report, object_reference).",
+            "items": { "type": "object" }
+          }
+        }
+      },
+      "SaveRequest": {
+        "type": "object",
+        "required": ["slug", "definition"],
+        "properties": {
+          "slug": { "type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$" },
+          "definition": { "$ref": "#/components/schemas/Definition" }
+        }
+      },
+      "SaveResponse": {
+        "type": "object",
+        "properties": {
+          "message": { "type": "string" },
+          "slug": { "type": "string" },
+          "path": { "type": "string", "description": "Absolute path the draft was written to" },
+          "validation": { "$ref": "#/components/schemas/ValidationResult" }
+        }
+      },
+      "PersistResponse": {
+        "allOf": [
+          { "$ref": "#/components/schemas/ValidationResult" },
+          {
+            "type": "object",
+            "properties": {
+              "message": { "type": "string" },
+              "slug": { "type": "string" },
+              "path": { "type": "string" }
+            }
+          }
+        ]
+      },
+      "TemplateSummary": {
+        "type": "object",
+        "properties": {
+          "slug": { "type": "string" },
+          "name": { "type": "string" },
+          "uuid": { "type": "string", "format": "uuid" },
+          "description": { "type": "string" },
+          "tags": { "type": "array", "items": { "type": "string" } },
+          "misp_default": { "type": "boolean" },
+          "element_count": { "type": "integer" },
+          "source": { "type": "string", "enum": ["library", "user"] }
+        }
+      },
+      "ObjectTemplateSummary": {
+        "type": "object",
+        "properties": {
+          "uuid": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "dir": { "type": "string" },
+          "version": { "type": "integer" },
+          "meta_category": { "type": "string" },
+          "n_attributes": { "type": "integer" },
+          "description": { "type": "string" }
+        }
+      },
+      "ObjectTemplateDetail": {
+        "type": "object",
+        "properties": {
+          "uuid": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "version": { "type": "integer" },
+          "meta_category": { "type": "string" },
+          "description": { "type": "string" },
+          "required": { "type": "array", "items": { "type": "string" } },
+          "requiredOneOf": { "type": "array", "items": { "type": "string" } },
+          "relations": { "type": "array", "items": { "$ref": "#/components/schemas/ObjectRelation" } }
+        }
+      },
+      "ObjectRelation": {
+        "type": "object",
+        "properties": {
+          "object_relation": { "type": "string" },
+          "description": { "type": "string" },
+          "misp_attribute": { "type": "string" },
+          "ui_priority": { "type": "integer" },
+          "multiple": { "type": "boolean" },
+          "categories": { "type": "array", "items": { "type": "string" } }
+        }
+      },
+      "Taxonomy": {
+        "type": "object",
+        "properties": {
+          "namespace": { "type": "string" },
+          "description": { "type": "string" },
+          "version": { "type": "integer" },
+          "n_predicates": { "type": "integer" }
+        }
+      },
+      "TaxonomyTag": {
+        "type": "object",
+        "properties": {
+          "tag": { "type": "string", "description": "Machine tag, e.g. tlp:red or admiralty-scale:source-reliability=\"a\"" },
+          "expanded": { "type": "string" }
+        }
+      },
+      "GalaxyType": {
+        "type": "object",
+        "properties": {
+          "type": { "type": "string" },
+          "name": { "type": "string" },
+          "namespace": { "type": "string" },
+          "description": { "type": "string" }
+        }
+      },
+      "GalaxyCluster": {
+        "type": "object",
+        "properties": {
+          "value": { "type": "string" },
+          "description": { "type": "string" },
+          "uuid": { "type": "string", "format": "uuid" }
+        }
+      }
+    }
+  }
+}
