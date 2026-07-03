@@ -66,6 +66,17 @@ def load_schema() -> dict:
 # Layer 1 — structural
 # ---------------------------------------------------------------------------
 
+# The library schema names each element subschema element_<type> and pins its
+# `type` via a const, so a structure element can match at most one branch of the
+# top-level `oneOf`. When it matches none, jsonschema reports an unhelpful
+# whole-element echo ("... is not valid under any of the given schemas"); we
+# dispatch on the element's type to report the real field-level problem instead.
+_KNOWN_ELEMENT_TYPES = {
+    "section", "text_block", "attribute_field", "object_field", "tag_field",
+    "galaxy_field", "file_field", "event_report", "object_reference",
+}
+
+
 def validate_structure(definition: dict) -> list[tuple[str, str]]:
     """Return a list of (json_path, message) structural errors; empty = valid."""
     schema = load_schema()
@@ -74,9 +85,53 @@ def validate_structure(definition: dict) -> list[tuple[str, str]]:
     validator = jsonschema.Draft7Validator(schema, format_checker=jsonschema.FormatChecker())
     errors: list[tuple[str, str]] = []
     for err in sorted(validator.iter_errors(definition), key=lambda e: list(e.path)):
+        typed = _explain_element_oneof(definition, err)
+        if typed is not None:
+            errors.extend(typed)
+            continue
         path = err.json_path if getattr(err, "json_path", None) else "$"
         errors.append((path, err.message))
     return errors
+
+
+def _explain_element_oneof(definition: dict, err) -> list[tuple[str, str]] | None:
+    """Turn the top-level `oneOf` failure on a structure element into friendly,
+    field-anchored (json_path, message) tuples by re-validating the element
+    against just its typed subschema (element_<type>). Returns None when `err`
+    isn't that case (the caller keeps the raw error)."""
+    if err.validator != "oneOf":
+        return None
+    ap = list(err.absolute_path)
+    if len(ap) != 2 or ap[0] != "structure" or not isinstance(ap[1], int):
+        return None
+    idx = ap[1]
+    structure = definition.get("structure")
+    if not isinstance(structure, list) or idx >= len(structure) or not isinstance(structure[idx], dict):
+        return None
+    el = structure[idx]
+    etype = el.get("type")
+    if etype not in _KNOWN_ELEMENT_TYPES:
+        return None  # unknown/missing type — the generic message is as good as any
+
+    schema = load_schema()
+    base = "definitions" if "definitions" in schema else "$defs"
+    subschema = {"$ref": f"#/{base}/element_{etype}", base: schema.get(base, {})}
+    sub = jsonschema.Draft7Validator(subschema, format_checker=jsonschema.FormatChecker())
+
+    eid = el.get("id") or "?"
+    prefix = f'{etype} "{eid}": '
+    out: list[tuple[str, str]] = []
+    for e in sorted(sub.iter_errors(el), key=lambda e: list(e.path)):
+        leaf = "".join(f".{p}" if isinstance(p, str) else f"[{p}]" for p in e.absolute_path)
+        path = f"$.structure[{idx}]{leaf}"
+        field = e.absolute_path[-1] if e.absolute_path else None
+        if e.validator == "minLength":
+            out.append((path, f'{prefix}"{field}" must not be empty'))
+        else:
+            out.append((path, f"{prefix}{e.message}"))
+    # Rare oneOf "matched more than one" case (element satisfies its own
+    # subschema): nothing to explain — fall back to the raw message.
+    return out or None
 
 
 # ---------------------------------------------------------------------------

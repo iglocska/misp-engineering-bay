@@ -93,6 +93,36 @@ def test_additional_property_rejected():
     assert not validator.validate_template(d).valid
 
 
+def _errors_for(structure_element):
+    d = _base()
+    d["structure"].append(structure_element)
+    return validator.validate_template(d).errors
+
+
+def test_element_oneof_message_is_friendly_for_empty_label():
+    """A freshly-added element with an empty label reports a specific,
+    field-anchored message — not the raw jsonschema oneOf whole-element echo."""
+    errs = _errors_for({"type": "event_report", "id": "event_report_1", "label": ""})
+    msgs = [e["message"] for e in errs]
+    assert not any("is not valid under any of the given schemas" in m for m in msgs)
+    target = next(e for e in errs if e["path"] == "$.structure[1].label")
+    assert 'event_report "event_report_1"' in target["message"]
+    assert "must not be empty" in target["message"]
+
+
+def test_element_oneof_message_names_missing_required_field():
+    errs = _errors_for({"type": "event_report", "id": "r"})  # no label
+    assert any("'label' is a required property" in e["message"]
+               and 'event_report "r"' in e["message"] for e in errs)
+
+
+def test_element_oneof_message_names_unexpected_property():
+    # text_block may not carry `parent` (additionalProperties:false)
+    errs = _errors_for({"type": "text_block", "id": "tb", "content": "x", "parent": "s_main"})
+    assert any("Additional properties are not allowed" in e["message"]
+               and "'parent'" in e["message"] for e in errs)
+
+
 def test_api_validate_endpoint(client):
     res = client.post("/api/templates/validate", json=_base())
     assert res.status_code == 200
