@@ -770,9 +770,10 @@ function fillOptions(sel, values, current, placeholder) {
 let _validateTimer = null;
 
 function scheduleValidate() {
-    // The JSON preview is local + cheap, so refresh it immediately on every edit
-    // (all mutations funnel through here); the server validation stays debounced.
-    if (typeof renderPreviewJson === 'function') renderPreviewJson();
+    // The preview tabs (JSON + user-form) are local + cheap, so refresh them
+    // immediately on every edit (all mutations funnel through here); the server
+    // validation stays debounced.
+    if (typeof renderPreview === 'function') renderPreview();
     clearTimeout(_validateTimer);
     _validateTimer = setTimeout(runValidate, 350);
 }

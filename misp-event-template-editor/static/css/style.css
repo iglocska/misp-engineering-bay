@@ -1115,3 +1115,111 @@ body {
     max-height: 460px;
     tab-size: 2;
 }
+
+/* --- Read-only user-form preview (task 6.2) ------------------------- */
+.etf-form { font-size: 13px; max-height: 520px; overflow: auto; }
+.etf-body { display: flex; flex-direction: column; gap: 12px; }
+.etf-muted { color: var(--text-dim); }
+
+/* Event header band */
+.etf-event-head {
+    padding: 10px 12px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    margin-bottom: 12px;
+}
+.etf-event-label {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;
+    color: var(--text-dim); margin-bottom: 3px;
+}
+.etf-event-info { font-weight: 600; line-height: 1.4; word-break: break-word; }
+.etf-event-meta { color: var(--text-muted); font-size: 12px; margin-top: 4px; }
+.etf-var {
+    font-family: var(--font-mono); font-size: 12px;
+    color: var(--primary); background: var(--primary-bg);
+    padding: 0 4px; border-radius: var(--radius-sm);
+}
+
+/* Section cards */
+.etf-section-group {
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+}
+.etf-section-group.etf-lead-group { border-style: dashed; }
+.etf-section-header { padding: 8px 12px; background: var(--bg-card); border-bottom: 1px solid var(--border); }
+.etf-section-title { font-size: 13px; font-weight: 700; color: var(--text); }
+.etf-section-help { color: var(--text-muted); font-size: 12px; margin-top: 2px; }
+.etf-section-help p, .etf-help p, .etf-text-block p { margin: 0; }
+.etf-section-body { padding: 10px 12px; display: flex; flex-direction: column; gap: 12px; }
+.etf-section-body:empty::after { content: '(no fields in this section)'; color: var(--text-dim); font-style: italic; font-size: 12px; }
+
+/* Fields */
+.etf-field { display: flex; flex-direction: column; gap: 3px; }
+.etf-label { font-weight: 600; color: var(--text); }
+.etf-req { color: var(--danger); margin-left: 2px; }
+.etf-typehint { color: var(--text-dim); font-size: 11px; font-weight: normal; }
+.etf-help { color: var(--text-muted); font-size: 12px; }
+.etf-restrict { color: var(--text-dim); font-size: 11px; }
+.etf-restrict code, .etf-object-req code { font-family: var(--font-mono); font-size: 11px; }
+
+/* Disabled inputs — look like real form controls but inert */
+.etf-input {
+    width: 100%;
+    padding: 5px 8px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text-muted);
+    font: inherit;
+    cursor: not-allowed;
+}
+.etf-textarea { resize: none; font-family: var(--font-mono); font-size: 12px; }
+.etf-file { color: var(--text-muted); font-size: 12px; }
+.etf-picker-row { display: flex; gap: 6px; align-items: center; }
+.etf-choose, .etf-addbtn {
+    font: inherit; font-size: 12px;
+    padding: 4px 10px;
+    background: var(--bg-surface); color: var(--text-dim);
+    border: 1px solid var(--border); border-radius: var(--radius-sm);
+    cursor: not-allowed; white-space: nowrap;
+}
+.etf-addbtn { align-self: flex-start; }
+.etf-text-block {
+    padding: 8px 12px;
+    background: var(--bg-card);
+    border-left: 3px solid var(--border);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    color: var(--text-muted);
+}
+
+/* object_field card */
+.etf-object {
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-card);
+    display: flex; flex-direction: column; gap: 6px;
+}
+.etf-object-title { font-weight: 700; color: var(--text); }
+.etf-object-warn { color: var(--danger); font-size: 12px; }
+.etf-object-req {
+    background: var(--primary-bg); border: 1px solid var(--border);
+    color: var(--text-muted); padding: 6px 10px; border-radius: var(--radius-sm); font-size: 12px;
+}
+.etf-object-relations { display: flex; flex-direction: column; gap: 8px; }
+.etf-rel { display: flex; flex-direction: column; gap: 2px; padding-left: 8px; border-left: 2px solid var(--border); }
+.etf-rel-label { font-size: 12px; font-weight: 500; color: var(--text); }
+
+/* Chips (default tags / clusters) */
+.etf-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.etf-chip {
+    font-size: 11px; padding: 1px 7px; border-radius: 10px;
+    background: var(--primary-bg); color: var(--primary);
+    border: 1px solid transparent;
+}
+.etf-chip-galaxy { background: var(--warning-bg); color: var(--warning); }
+.etf-chip-locked { border-color: currentColor; }
+
+.etf-footnote { color: var(--text-dim); font-size: 11px; font-style: italic; margin-top: 12px; }
