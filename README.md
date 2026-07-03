@@ -41,14 +41,36 @@ Key features:
 
 See the [Galaxy Editor README](misp-galaxy-editor/README.md) for installation and usage instructions.
 
+### Event Template Editor
+
+**Path:** [`misp-event-template-editor/`](misp-event-template-editor/)
+
+A Python/Flask web application for creating, editing, validating, previewing, and exporting MISP event templates (the `event-template-v1` construct) — the reusable JSON documents that turn an incident-response playbook into a single-page form a MISP operator fills to produce a consistently-shaped event. Runs in public mode (export/download only) or private mode (persist directly to the misp-event-templates repository).
+
+Key features:
+- Guided builder with a palette + sortable canvas + per-element properties for all 9 element types (section, text_block, attribute_field, object_field, tag_field, galaxy_field, file_field, event_report, object_reference)
+- Reference-data-backed editing, fully offline — attribute category/type, object templates + relations, taxonomies, and galaxies come from bundled submodules and `describeTypes.json`
+- Full `event_defaults` editing including a guided `info_template` variable builder and taxonomy/galaxy-backed default pickers
+- Live canonical-JSON preview plus a read-only user-form preview mirroring how MISP renders the template
+- Two-layer offline validation (structural schema + semantic checks); export and persist are blocked until the document is valid, so nothing hitting the library can fail CI
+- Browse, load, clone, and modify the bundled library plus your own drafts
+- Public/private mode — public for authoring and export, private for direct repository writes
+- Interactive API documentation via Swagger UI
+- Light and dark themes
+
+See the [Event Template Editor README](misp-event-template-editor/README.md) for installation and usage instructions.
+
 ## Repository Structure
 
 ```
 misp-engineering-bay/
 ├── misp-object-template-creator/   # Object template authoring tool
 ├── misp-galaxy-editor/             # Galaxy definition and cluster editor
+├── misp-event-template-editor/     # Event template authoring tool
 ├── misp-objects/                   # MISP objects library (git submodule)
 ├── misp-galaxy/                    # MISP galaxy library (git submodule)
+├── misp-event-templates/           # MISP event templates library (git submodule)
+├── misp-taxonomies/                # MISP taxonomies library (git submodule)
 ├── update-vendor-libs.sh           # Update bundled JS/CSS libraries
 ├── PRD.md                          # Product requirements for the template creator
 ├── requirements.md                 # Implementation milestones and progress tracking
@@ -85,18 +107,22 @@ Review the changes with `git diff --stat` and commit the updated files with the 
 
 ### Updating Submodules
 
-The `misp-objects` and `misp-galaxy` submodules should be updated periodically to pick up new templates and galaxies from the upstream repositories:
+The library submodules — `misp-objects`, `misp-galaxy`, `misp-event-templates`, and `misp-taxonomies` — should be updated periodically to pick up new content from the upstream repositories:
 
 ```bash
 git submodule update --remote
 ```
 
+The Event Template Editor validates against `misp-event-templates/schema_event_template.json` (the library CI gate) and pulls its reference data from all four submodules, so bumping them keeps its pickers and validation in step with upstream.
+
 ### Updating describeTypes.json
 
-The Object Template Creator bundles a snapshot of MISP's canonical type definitions. To update it:
+The Object Template Creator and the Event Template Editor each bundle a snapshot of MISP's canonical type definitions (the two are identical files). To update them:
 
 ```bash
 curl -o misp-object-template-creator/data/describeTypes.json \
+  https://raw.githubusercontent.com/MISP/MISP/refs/heads/2.5/describeTypes.json
+curl -o misp-event-template-editor/data/describeTypes.json \
   https://raw.githubusercontent.com/MISP/MISP/refs/heads/2.5/describeTypes.json
 ```
 

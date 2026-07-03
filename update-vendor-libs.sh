@@ -8,13 +8,13 @@ REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 echo "=== Updating vendored libraries ==="
 
 # ---------------------------------------------------------------------------
-# Swagger UI (used by both tools)
+# Swagger UI (used by all three tools)
 # ---------------------------------------------------------------------------
 SWAGGER_VERSION=$(curl -sL "https://registry.npmjs.org/swagger-ui-dist/latest" | python3 -c "import sys,json; print(json.load(sys.stdin)['version'])")
 echo ""
 echo "Swagger UI: v${SWAGGER_VERSION}"
 
-for tool in misp-object-template-creator misp-galaxy-editor; do
+for tool in misp-object-template-creator misp-galaxy-editor misp-event-template-editor; do
     dir="$REPO_ROOT/$tool/static/vendor"
     mkdir -p "$dir"
     echo "  -> $tool"
