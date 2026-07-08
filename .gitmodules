@@ -4,3 +4,9 @@
 [submodule "MISP-galaxy"]
 	path = misp-galaxy
 	url = https://github.com/MISP/MISP-galaxy
+[submodule "misp-event-templates"]
+	path = misp-event-templates
+	url = https://github.com/MISP/misp-event-templates.git
+[submodule "misp-taxonomies"]
+	path = misp-taxonomies
+	url = https://github.com/MISP/misp-taxonomies.git

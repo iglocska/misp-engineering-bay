@@ -1,0 +1,485 @@
+/**
+ * elements.js — structure element factories + property editors (PRD 3.3 + 4.x).
+ *
+ * 3.3 ships the factories for all 9 types and the *common* property editor
+ * (the plain scalar fields shared across types: id, label, content,
+ * relationship_type, help, parent). The reference-data-backed and structured
+ * fields (misp category/type, object_template picker, from/to selectors,
+ * restrict lists, enums…) are filled per type in Phase 4 — each type advertises
+ * its follow-up subtask via ELEMENT_META[...].phase.
+ *
+ * The editor returns an HTML string with `data-path` / `data-optional`
+ * annotations; editor.js binds those inputs generically to the selected element
+ * via the dotted-path setter. This keeps element markup here and orchestration
+ * (state, canvas, validation) in editor.js.
+ */
+
+'use strict';
+
+// Minimal structurally-shaped skeletons — only the schema-required keys, so a
+// freshly-added element surfaces exactly the "you must fill this" errors and
+// nothing spurious. Optional keys are added by their editors when set.
+const ELEMENT_FACTORIES = {
+    section:          id => ({ type: 'section', id, label: '' }),
+    text_block:       id => ({ type: 'text_block', id, content: '' }),
+    attribute_field:  id => ({ type: 'attribute_field', id, label: '', misp: { category: '', type: '' } }),
+    object_field:     id => ({ type: 'object_field', id, label: '', object_template: { uuid: '', name: '', minimum_version: 1 } }),
+    tag_field:        id => ({ type: 'tag_field', id, label: '' }),
+    galaxy_field:     id => ({ type: 'galaxy_field', id, label: '' }),
+    file_field:       id => ({ type: 'file_field', id, label: '' }),
+    event_report:     id => ({ type: 'event_report', id, label: '' }),
+    object_reference: id => ({ type: 'object_reference', id, from: '', to: '', relationship_type: '' }),
+};
+
+function newElement(type, id) {
+    const factory = ELEMENT_FACTORIES[type];
+    if (!factory) throw new Error(`Unknown element type: ${type}`);
+    return factory(id);
+}
+
+// Per-type capability map driving the common editor + the Phase-4 placeholder.
+//   label/help/parent — which shared optional/required fields apply
+//   phase             — the Phase-4 subtask that adds the type-specific fields
+//   extra             — human summary of what Phase 4 will add
+const ELEMENT_META = {
+    section:          { label: true,  help: true,  parent: false, phase: '4.1', extra: null },
+    text_block:       { label: false, help: false, parent: false, phase: '4.1', extra: null },
+    attribute_field:  { label: true,  help: true,  parent: true,  phase: '4.2', extra: null },
+    object_field:     { label: true,  help: true,  parent: true,  phase: '4.5', extra: null },
+    tag_field:        { label: true,  help: true,  parent: true,  phase: '4.3', extra: 'restrict_taxonomies, multiple, mandatory' },
+    galaxy_field:     { label: true,  help: true,  parent: true,  phase: '4.3', extra: 'restrict_galaxy_types, multiple, mandatory' },
+    file_field:       { label: true,  help: true,  parent: true,  phase: '4.4', extra: null },
+    event_report:     { label: true,  help: true,  parent: true,  phase: '4.4', extra: null },
+    object_reference: { label: false, help: false, parent: false, phase: '4.5', extra: null },
+};
+
+function elementTypeInfo(type) {
+    return (typeof ELEMENT_TYPES !== 'undefined' ? ELEMENT_TYPES : []).find(t => t.type === type)
+        || { type, label: type, icon: '•' };
+}
+
+// One-line summary shown on the canvas row.
+function elementSummary(el) {
+    if (el.type === 'text_block') {
+        const c = (el.content || '').trim();
+        return c ? c.slice(0, 60) : 'Text block';
+    }
+    if (el.type === 'object_reference') {
+        return `${el.from || '?'} → ${el.to || '?'}`;
+    }
+    return el.label || el.id || '(unnamed)';
+}
+
+// --- Property editor markup (3.3 common fields) ---------------------------
+function renderElementEditor(el, sections) {
+    const meta = ELEMENT_META[el.type] || {};
+    const info = elementTypeInfo(el.type);
+    const rows = [];
+
+    rows.push(field('text', 'id', 'ID', el.id, {
+        tip: 'Unique id within the template. Letters, digits and underscores; must start with a letter or underscore.',
+    }));
+    if (meta.label) {
+        rows.push(field('text', 'label', 'Label', el.label || '', {
+            tip: 'The field label shown to the user filling the form.',
+        }));
+    }
+    if (el.type === 'text_block') {
+        rows.push(field('textarea', 'content', 'Content (Markdown)', el.content || '', {
+            rows: 6,
+            tip: 'Static Markdown rendered inline in the user form — it is not an input the user fills in.',
+        }));
+    }
+    if (meta.help) {
+        rows.push(field('textarea', 'help', 'Help (Markdown)', el.help || '', {
+            optional: true,
+            rows: 3,
+            tip: 'Optional Markdown helper text shown beneath the field in the user form.',
+        }));
+    }
+    if (meta.parent) {
+        rows.push(parentField(el, sections));
+    }
+    const extra = renderTypeExtra(el);
+    if (extra) {
+        rows.push(extra);
+    } else if (meta.extra) {
+        rows.push(`<p class="et-region-hint">Type-specific fields — ${escapeHtml(meta.extra)}.<span class="tasktag">task ${meta.phase}</span></p>`);
+    }
+
+    return `
+        <div class="et-el-editor">
+            <div class="et-el-editor-head">
+                <span class="et-el-badge">${escapeHtml(info.icon)}</span>
+                <strong>${escapeHtml(info.label)}</strong>
+            </div>
+            ${rows.join('')}
+        </div>`;
+}
+
+// A single bound field. `data-path` tells editor.js where to write; an optional
+// field carries `data-optional` so an emptied value deletes the key.
+function field(kind, path, label, value, opts = {}) {
+    const tip = opts.tip
+        ? ` <span class="tooltip-trigger" data-tooltip="${escapeHtml(opts.tip)}">&#9432;</span>`
+        : '';
+    const optAttr = opts.optional ? ' data-optional="1"' : '';
+    const roAttr = opts.readonly ? ' readonly' : '';
+    const rows = opts.rows || 2;
+    const control = kind === 'textarea'
+        ? `<textarea class="form-input form-textarea" rows="${rows}" data-path="${escapeHtml(path)}"${optAttr}${roAttr}>${escapeHtml(value)}</textarea>`
+        : `<input type="text" class="form-input" data-path="${escapeHtml(path)}"${optAttr}${roAttr} value="${escapeHtml(value)}">`;
+    return `
+        <div class="form-group">
+            <label class="form-label">${escapeHtml(label)}${opts.optional ? ' <span class="et-opt">optional</span>' : ''}${tip}</label>
+            ${control}
+            <div class="field-error" data-error-for="${escapeHtml(path)}"></div>
+        </div>`;
+}
+
+// --- Type-specific field blocks (Phase 4) ---------------------------------
+// Dispatch to the per-type editor extension. Returns an HTML string, or null
+// for types whose fields are fully covered by the common editor above
+// (section, text_block) — those advertise `extra:null` in ELEMENT_META.
+function renderTypeExtra(el) {
+    switch (el.type) {
+        case 'attribute_field': return renderAttributeField(el);
+        case 'tag_field':       return renderTagField(el);
+        case 'galaxy_field':    return renderGalaxyField(el);
+        case 'file_field':      return renderFileField(el);
+        case 'event_report':    return renderEventReport(el);
+        case 'object_field':    return renderObjectField(el);
+        case 'object_reference': return renderObjectReference(el);
+        default: return null;
+    }
+}
+
+// attribute_field (task 4.2). `mandatory`/`repeatable` toggles, then the MISP
+// pane: category → type dependent dropdowns (populated by editor.js from the
+// reference-data cache), the to_ids default, and the comment/value templates.
+// The category/type <select>s are rendered as empty shells carrying
+// `data-et-ref`; editor.js fills their options and wires the category→type
+// cascade. Everything else binds through the generic [data-path] machinery.
+function renderAttributeField(el) {
+    const misp = el.misp || {};
+    return [
+        checkboxField('mandatory', 'Mandatory — user must fill this field', !!el.mandatory,
+            'Require a value before the event can be created.'),
+        checkboxField('repeatable', 'Repeatable — user can add multiple values', !!el.repeatable,
+            'Let the user add more than one value for this field.'),
+        '<hr class="et-sep">',
+        refSelectField('misp.category', 'MISP category',
+            'Which MISP attribute category this field records. Determines the available types.'),
+        refSelectField('misp.type', 'MISP type', null, 'Types are filtered to the selected category.'),
+        `<div class="field-error" data-error-for="misp"></div>`,
+        checkboxField('misp.to_ids_default', 'Default the IDS flag on (to_ids)', !!misp.to_ids_default,
+            'Pre-tick the to_ids flag on the attribute the user creates.'),
+        field('text', 'misp.comment_template', 'Comment template', misp.comment_template || '', {
+            optional: true, tip: 'Pre-fills the attribute comment when the user submits.' }),
+        field('text', 'misp.default_value', 'Default value', misp.default_value || '', {
+            optional: true, tip: 'A value pre-filled into the field for the user.' }),
+    ].join('');
+}
+
+// object_field (task 4.5). mandatory/repeatable toggles + an object-template
+// picker (datalist search filled by editor.js) + a relations panel. The uuid is
+// set by the picker (readonly); minimum_version is an editable integer wired by
+// editor.js (it must serialise as a number). The relations panel (include/
+// exclude + per-relation overrides) is rendered by editor.js once the template's
+// relations load.
+function renderObjectField(el) {
+    const ot = el.object_template || {};
+    const hasTemplate = !!ot.uuid;
+    return [
+        checkboxField('mandatory', 'Mandatory — user must fill this object', !!el.mandatory,
+            'Require the object before the event can be created.'),
+        checkboxField('repeatable', 'Repeatable — user can add multiple object instances', !!el.repeatable,
+            'Let the user create more than one of this object.'),
+        '<hr class="et-sep">',
+        `<div class="form-group" data-et-ot>
+            <label class="form-label">Object template
+                <span class="tooltip-trigger" data-tooltip="The MISP object template this field builds, from the bundled misp-objects. Search installed templates by name.">&#9432;</span>
+            </label>
+            <div class="tag-input-wrapper" data-et-ot-box>
+                <input type="text" class="form-input tag-input" list="dl-object-templates"
+                       data-et-ot-search placeholder="Search object templates…" autocomplete="off">
+                <datalist id="dl-object-templates" data-et-ot-datalist></datalist>
+            </div>
+            <div class="et-ot-current" data-et-ot-display>${objectTemplateDisplay(ot)}</div>
+            <div class="field-error" data-error-for="object_template"></div>
+        </div>`,
+        field('text', 'object_template.uuid', 'Template UUID', ot.uuid || '', {
+            readonly: true, tip: 'Set by the template picker above.' }),
+        `<div class="form-group">
+            <label class="form-label">Minimum version
+                <span class="tooltip-trigger" data-tooltip="The object template must be installed at this version or newer for the field to render.">&#9432;</span>
+            </label>
+            <input type="number" min="1" step="1" class="form-input" data-et-ot-minver
+                   value="${escapeHtml(ot.minimum_version != null ? ot.minimum_version : '')}">
+            <div class="field-error" data-error-for="object_template.minimum_version"></div>
+        </div>`,
+        '<hr class="et-sep">',
+        `<div class="form-group">
+            <label class="form-label">Relations to include
+                <span class="tooltip-trigger" data-tooltip="Which of the template's relations appear in the user form, with optional per-relation overrides. Empty selection = show all relations (template default).">&#9432;</span>
+            </label>
+            <div class="et-relations-panel" data-et-relations-panel>${
+                hasTemplate
+                    ? '<p class="et-region-hint">Loading relations…</p>'
+                    : '<p class="et-region-hint">Pick an object template above to choose relations.</p>'
+            }</div>
+        </div>`,
+    ].join('');
+}
+
+// Selected-template summary line (name + uuid), or a muted placeholder.
+function objectTemplateDisplay(ot) {
+    if (!ot || !ot.uuid) return '<em class="muted">(none selected)</em>';
+    return `<strong>${escapeHtml(ot.name || '(unnamed)')}</strong> <span class="muted">${escapeHtml(ot.uuid)}</span>`;
+}
+
+// Relations panel markup (rendered/re-rendered by editor.js as inclusion toggles
+// change). `rels` = the template's relations; `el.relations` = the authored
+// subset with overrides. Empty rels / no template handled by the caller.
+function relationsPanelHtml(el, rels) {
+    if (!rels || !rels.length) return '<p class="et-region-hint">This object template has no relations.</p>';
+    const selected = new Map();
+    (el.relations || []).forEach(r => { if (r && r.object_relation) selected.set(r.object_relation, r); });
+    const rows = rels.map(r => relationRowHtml(r, selected.get(r.object_relation))).join('');
+    return `
+        <div class="et-relations-controls">
+            <a href="#" data-et-rel-all>Select all</a>
+            <span class="muted"> · </span>
+            <a href="#" data-et-rel-none>Select none</a>
+            <span class="muted"> — empty = show all relations (template default)</span>
+        </div>
+        <div class="et-relations-list">${rows}</div>`;
+}
+
+function relationRowHtml(r, sel) {
+    const included = !!sel;
+    const name = r.object_relation;
+    const type = r.misp_attribute ? ` <span class="et-rel-type">${escapeHtml(r.misp_attribute)}</span>` : '';
+    const descAttr = r.description ? ` title="${escapeHtml(r.description)}"` : '';
+    return `
+        <div class="et-rel-row${included ? ' included' : ''}" data-rel="${escapeHtml(name)}">
+            <label class="toggle-label"${descAttr}>
+                <input type="checkbox" data-et-rel-toggle="${escapeHtml(name)}"${included ? ' checked' : ''}>
+                <span class="et-rel-name">${escapeHtml(name)}</span>${type}
+            </label>
+            ${included ? relationOverridesHtml(sel) : ''}
+        </div>`;
+}
+
+// Per-relation override controls (only shown for an included relation).
+function relationOverridesHtml(sel) {
+    sel = sel || {};
+    return `
+        <div class="et-rel-overrides">
+            <label class="toggle-label"><input type="checkbox" data-et-rel-field="mandatory"${sel.mandatory ? ' checked' : ''}><span>mandatory</span></label>
+            <label class="toggle-label"><input type="checkbox" data-et-rel-field="hidden"${sel.hidden ? ' checked' : ''}><span>hidden</span></label>
+            <input type="text" class="form-input et-rel-ov" data-et-rel-field="default_value" placeholder="default value" value="${escapeHtml(sel.default_value || '')}">
+            <input type="text" class="form-input et-rel-ov" data-et-rel-field="label_override" placeholder="label override" value="${escapeHtml(sel.label_override || '')}">
+            <input type="text" class="form-input et-rel-ov" data-et-rel-field="help_override" placeholder="help override" value="${escapeHtml(sel.help_override || '')}">
+        </div>`;
+}
+
+// object_reference (task 4.5). Not user-facing — from/to point at sibling
+// object_field ids (selects filled by editor.js), plus relationship_type and an
+// optional comment.
+function renderObjectReference(el) {
+    return [
+        '<div class="et-region-hint">Object references are not user-facing — they materialise a relationship between two object fields when the event is created.</div>',
+        ofSelectField('from', 'From (source object field)', 'The object field the relationship starts from.'),
+        ofSelectField('to', 'To (target object field)', 'The object field the relationship points to.'),
+        field('text', 'relationship_type', 'Relationship type', el.relationship_type || '', {
+            tip: 'The relationship between the two object fields, e.g. "connects-to", "downloads".' }),
+        field('text', 'comment', 'Comment', el.comment || '', {
+            optional: true, tip: 'Optional comment stored on the reference.' }),
+    ].join('');
+}
+
+// A <select> shell for choosing a sibling object_field id; options filled by
+// editor.js (setupObjectReference) from the current structure.
+function ofSelectField(path, label, tip) {
+    return `
+        <div class="form-group">
+            <label class="form-label">${escapeHtml(label)}
+                <span class="tooltip-trigger" data-tooltip="${escapeHtml(tip)}">&#9432;</span>
+            </label>
+            <select class="form-select" data-path="${escapeHtml(path)}" data-et-of-select></select>
+            <div class="field-error" data-error-for="${escapeHtml(path)}"></div>
+        </div>`;
+}
+
+// file_field (task 4.4). mandatory / repeatable toggles + an optional `as`
+// enum (how the uploaded file is stored). All plain — bound generically.
+function renderFileField(el) {
+    return [
+        checkboxField('mandatory', 'Mandatory — user must upload a file', !!el.mandatory,
+            'Require a file before the event can be created.'),
+        checkboxField('repeatable', 'Repeatable — user can upload multiple files', !!el.repeatable,
+            'Let the user attach more than one file.'),
+        selectField('as', 'Store uploaded files as', el.as || '', [
+            { value: '', label: '— default (attachment) —' },
+            { value: 'attachment', label: 'attachment — general-purpose file attribute' },
+            { value: 'malware-sample', label: 'malware-sample — encrypted / quarantined sample' },
+        ], { optional: true, tip: 'How an uploaded file is stored on the event. Leave default unless you need malware-sample handling.' }),
+    ].join('');
+}
+
+// event_report (task 4.4). mandatory toggle + optional default_content the user
+// starts editing from. Plain — bound generically.
+function renderEventReport(el) {
+    return [
+        checkboxField('mandatory', 'Mandatory — user must complete the report', !!el.mandatory,
+            'Require the report to be filled before the event can be created.'),
+        field('textarea', 'default_content', 'Default content (Markdown)', el.default_content || '', {
+            optional: true, rows: 6,
+            tip: 'Pre-fills the report body the user starts from. The filled value becomes an EventReport attached to the new event.',
+        }),
+    ].join('');
+}
+
+// tag_field (task 4.3). mandatory / multiple toggles + a taxonomy-restriction
+// multipicker. An empty restrict list means the user may pick any tag.
+function renderTagField(el) {
+    return [
+        checkboxField('mandatory', 'Mandatory — user must pick a tag', !!el.mandatory,
+            'Require at least one tag before the event can be created.'),
+        checkboxField('multiple', 'Allow multiple tags', !!el.multiple,
+            'Let the user select more than one tag.'),
+        '<hr class="et-sep">',
+        renderMultipicker(el, {
+            path: 'restrict_taxonomies',
+            label: 'Restrict to taxonomies',
+            tip: 'Limit the tag picker to the chosen taxonomy namespaces. Leave empty to allow any tag.',
+            placeholder: 'Type a taxonomy namespace…',
+            hint: 'Empty = any tag. Otherwise restricted to tags from the chosen taxonomies.',
+            anyLabel: '(any taxonomy)',
+        }),
+    ].join('');
+}
+
+// galaxy_field (task 4.3). mandatory / multiple toggles + a galaxy-type
+// restriction multipicker. Empty = the user may pick any cluster.
+function renderGalaxyField(el) {
+    return [
+        checkboxField('mandatory', 'Mandatory — user must pick a cluster', !!el.mandatory,
+            'Require at least one galaxy cluster before the event can be created.'),
+        checkboxField('multiple', 'Allow multiple clusters', !!el.multiple,
+            'Let the user select more than one galaxy cluster.'),
+        '<hr class="et-sep">',
+        renderMultipicker(el, {
+            path: 'restrict_galaxy_types',
+            label: 'Restrict to galaxy types',
+            tip: 'Limit the cluster picker to the chosen galaxy types. Leave empty to allow any cluster.',
+            placeholder: 'Type a galaxy type…',
+            hint: 'Empty = any cluster. Otherwise restricted to clusters from the chosen galaxy types.',
+            anyLabel: '(any galaxy type)',
+        }),
+    ].join('');
+}
+
+// Generic string-array multipicker: removable chips + a datalist-backed search
+// input (reuses the envelope's chip-input look). Options and add/remove wiring
+// are attached by editor.js (setupMultipicker), which owns the reference cache;
+// here we render the shell and the current chips.
+function renderMultipicker(el, cfg) {
+    const listId = `dl-${cfg.path}`;
+    return `
+        <div class="form-group et-multipicker" data-et-mp="${escapeHtml(cfg.path)}"
+             data-et-mp-any="${escapeHtml(cfg.anyLabel)}">
+            <label class="form-label">${escapeHtml(cfg.label)}
+                <span class="tooltip-trigger" data-tooltip="${escapeHtml(cfg.tip)}">&#9432;</span>
+            </label>
+            <div class="tag-input-wrapper" data-et-mp-box>
+                <div class="tag-list" data-et-mp-chips>${multipickerChips(el[cfg.path], cfg.anyLabel)}</div>
+                <input type="text" class="form-input tag-input" list="${escapeHtml(listId)}"
+                       data-et-mp-input placeholder="${escapeHtml(cfg.placeholder)}" autocomplete="off">
+                <datalist id="${escapeHtml(listId)}" data-et-mp-datalist></datalist>
+            </div>
+            <div class="et-field-hint">${escapeHtml(cfg.hint)}</div>
+            <div class="field-error" data-error-for="${escapeHtml(cfg.path)}"></div>
+        </div>`;
+}
+
+// Chip HTML for a string-array value (or the muted "any" hint when empty).
+function multipickerChips(values, anyLabel) {
+    const arr = Array.isArray(values) ? values : [];
+    if (!arr.length) return `<span class="empty-hint" data-et-mp-empty>${escapeHtml(anyLabel)}</span>`;
+    return arr.map((v, i) =>
+        `<span class="tag-item" data-idx="${i}">${escapeHtml(v)}<span class="tag-remove" data-et-mp-remove="${i}" title="Remove">&times;</span></span>`
+    ).join('');
+}
+
+// A boolean toggle bound via [data-path]; marked data-optional so unchecking it
+// deletes the key (keeps the canonical doc minimal — see editor.js binder).
+function checkboxField(path, label, checked, tip) {
+    const tipHtml = tip
+        ? ` <span class="tooltip-trigger" data-tooltip="${escapeHtml(tip)}">&#9432;</span>`
+        : '';
+    return `
+        <div class="form-group">
+            <label class="toggle-label">
+                <input type="checkbox" data-path="${escapeHtml(path)}" data-optional="1"${checked ? ' checked' : ''}>
+                <span>${escapeHtml(label)}</span>${tipHtml}
+            </label>
+        </div>`;
+}
+
+// A reference-data-backed <select> shell. Options + change wiring are added by
+// editor.js (which owns the reference cache); here we only lay out the control
+// with its data-path and a stable data-et-ref = the path (editor.js keys on it).
+function refSelectField(path, label, tip, hint) {
+    const tipHtml = tip
+        ? ` <span class="tooltip-trigger" data-tooltip="${escapeHtml(tip)}">&#9432;</span>`
+        : '';
+    const hintHtml = hint ? `<div class="et-field-hint">${escapeHtml(hint)}</div>` : '';
+    return `
+        <div class="form-group">
+            <label class="form-label">${escapeHtml(label)}${tipHtml}</label>
+            <select class="form-select" data-path="${escapeHtml(path)}" data-et-ref="${escapeHtml(path)}"></select>
+            ${hintHtml}
+            <div class="field-error" data-error-for="${escapeHtml(path)}"></div>
+        </div>`;
+}
+
+// A static (non-reference) <select> bound generically via [data-path]. `options`
+// is [{value,label}]; an optional select deletes its key when the blank option
+// is chosen (keeps the canonical doc minimal).
+function selectField(path, label, value, options, opts = {}) {
+    const tip = opts.tip
+        ? ` <span class="tooltip-trigger" data-tooltip="${escapeHtml(opts.tip)}">&#9432;</span>`
+        : '';
+    const optAttr = opts.optional ? ' data-optional="1"' : '';
+    const opers = options.map(o =>
+        `<option value="${escapeHtml(o.value)}"${o.value === value ? ' selected' : ''}>${escapeHtml(o.label)}</option>`).join('');
+    return `
+        <div class="form-group">
+            <label class="form-label">${escapeHtml(label)}${opts.optional ? ' <span class="et-opt">optional</span>' : ''}${tip}</label>
+            <select class="form-select" data-path="${escapeHtml(path)}"${optAttr}>${opers}</select>
+            <div class="field-error" data-error-for="${escapeHtml(path)}"></div>
+        </div>`;
+}
+
+// parent selector — options are the section elements (excluding self).
+function parentField(el, sections) {
+    const opts = ['<option value="">— none (top level) —</option>'].concat(
+        sections
+            .filter(s => s.id && s.id !== el.id)
+            .map(s => {
+                const selected = el.parent === s.id ? ' selected' : '';
+                const label = s.label ? `${s.label} (#${s.id})` : `#${s.id}`;
+                return `<option value="${escapeHtml(s.id)}"${selected}>${escapeHtml(label)}</option>`;
+            })
+    ).join('');
+    return `
+        <div class="form-group">
+            <label class="form-label">Parent section <span class="et-opt">optional</span>
+                <span class="tooltip-trigger" data-tooltip="Group this field under a section for display. Points at a section element's id.">&#9432;</span>
+            </label>
+            <select class="form-select" data-path="parent" data-optional="1">${opts}</select>
+            <div class="field-error" data-error-for="parent"></div>
+        </div>`;
+}

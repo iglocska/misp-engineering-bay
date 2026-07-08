@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}MISP Event Template Editor{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-brand">
+            <a href="/">MISP Event Template Editor</a>
+        </div>
+        <div class="nav-links">
+            <a href="/" class="nav-link {% if request.path == '/' %}active{% endif %}">Editor</a>
+            <a href="/browse" class="nav-link {% if request.path == '/browse' %}active{% endif %}">Browse Templates</a>
+            <a href="/docs" class="nav-link {% if request.path == '/docs' %}active{% endif %}">API Docs</a>
+            <button class="btn btn-icon theme-toggle" onclick="toggleTheme()" title="Toggle light/dark theme">
+                <span class="theme-icon-dark">&#9790;</span>
+                <span class="theme-icon-light">&#9728;</span>
+            </button>
+        </div>
+    </nav>
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+    <div id="toast-container"></div>
+    <script>
+    // --- Tooltip system (fixed-position, never clipped) ---
+    (function() {
+        let popup = null;
+        document.addEventListener('mouseenter', function(e) {
+            const trigger = e.target.closest('.tooltip-trigger');
+            if (!trigger) return;
+            const text = trigger.getAttribute('data-tooltip');
+            if (!text) return;
+
+            popup = document.createElement('div');
+            popup.className = 'tooltip-popup';
+            popup.textContent = text;
+            document.body.appendChild(popup);
+
+            const rect = trigger.getBoundingClientRect();
+            const pw = popup.offsetWidth;
+            const ph = popup.offsetHeight;
+
+            // Prefer above the trigger; fall back to below if no room
+            let top = rect.top - ph - 8;
+            if (top < 4) top = rect.bottom + 8;
+
+            // Horizontally center on trigger, but clamp to viewport
+            let left = rect.left + rect.width / 2 - pw / 2;
+            left = Math.max(8, Math.min(left, window.innerWidth - pw - 8));
+
+            popup.style.top = top + 'px';
+            popup.style.left = left + 'px';
+        }, true);
+
+        document.addEventListener('mouseleave', function(e) {
+            if (e.target.closest('.tooltip-trigger') && popup) {
+                popup.remove();
+                popup = null;
+            }
+        }, true);
+    })();
+
+    function toggleTheme() {
+        const html = document.documentElement;
+        const current = html.getAttribute('data-theme');
+        const next = current === 'light' ? 'dark' : 'light';
+        html.setAttribute('data-theme', next);
+        localStorage.setItem('theme', next);
+    }
+    // Apply saved theme on load
+    (function() {
+        const saved = localStorage.getItem('theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', saved);
+    })();
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

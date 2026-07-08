@@ -1,0 +1,4 @@
+flask>=3.0
+jsonschema>=4.20
+gunicorn>=21.2
+pytest>=8.0

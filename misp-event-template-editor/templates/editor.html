@@ -1,0 +1,275 @@
+{% extends "base.html" %}
+{% block title %}Editor — MISP Event Template Editor{% endblock %}
+{% block content %}
+<div class="editor-shell" id="editor-shell" data-mode="{{ mode }}">
+
+  <!-- Toolbar -->
+  <header class="et-toolbar">
+    <div class="et-toolbar-titles">
+      <h1>Event Template Editor</h1>
+      <p class="muted">Author, validate, preview, and export MISP event templates
+        (<code>event-template-v1</code>).</p>
+    </div>
+    <div class="et-toolbar-actions">
+      <button type="button" class="btn btn-secondary" id="btn-save-draft"
+              title="Save the current template as a draft in output/. Drafts may be incomplete — validation is advisory here.">Save draft</button>
+      <button type="button" class="btn btn-secondary" id="btn-export"
+              title="Download the canonical definition.json. Blocked until the template passes validation (D8).">Export</button>
+      {% if mode == 'private' %}
+      <button type="button" class="btn btn-primary" id="btn-persist"
+              style="background: var(--success); border-color: var(--success);"
+              title="Write directly into the misp-event-templates submodule as templates/&lt;slug&gt;/definition.json. Blocked until the template passes validation (D8).">Persist to library</button>
+      {% endif %}
+      <span class="mode-badge" id="mode-badge" data-mode="{{ mode }}"
+            title="{% if mode == 'private' %}Private mode: can persist to the misp-event-templates submodule{% else %}Public mode: export/download only{% endif %}">{{ mode }}</span>
+    </div>
+  </header>
+
+  <!-- Envelope + library metadata (task 3.2) -->
+  <section class="et-region et-envelope" id="envelope-region">
+    <div class="et-region-header"><h2>Template metadata</h2></div>
+    <div class="et-region-body et-envelope-body">
+
+      <div class="form-row">
+        <div class="form-group flex-1">
+          <label class="form-label" for="env-slug">Slug
+            <span class="tooltip-trigger" data-tooltip="The library directory name (templates/&lt;slug&gt;/definition.json). Lowercase letters, digits and hyphens only. Intentionally separate from the display name — it may differ. Auto-filled from the name until you edit it.">&#9432;</span>
+          </label>
+          <input type="text" id="env-slug" class="form-input" placeholder="e.g. spearphishing-email" autocomplete="off" spellcheck="false">
+          <div class="field-error" id="err-slug"></div>
+        </div>
+        <div class="form-group flex-1">
+          <label class="form-label" for="env-name">Name
+            <span class="tooltip-trigger" data-tooltip="Human-readable template title stored in the JSON (definition.name). Required.">&#9432;</span>
+          </label>
+          <input type="text" id="env-name" class="form-input" placeholder="e.g. Spearphishing email">
+          <div class="field-error" id="err-name"></div>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="env-description">Description
+          <span class="tooltip-trigger" data-tooltip="What incident type this template captures and how it is meant to be used. Optional but recommended.">&#9432;</span>
+        </label>
+        <textarea id="env-description" class="form-input form-textarea" rows="2" placeholder="What incident type this template captures…"></textarea>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group flex-1">
+          <label class="form-label" for="env-uuid">UUID
+            <span class="tooltip-trigger" data-tooltip="Stable unique identifier for this template (required, uuid format). Auto-generated for a new template; regenerate only when creating a genuinely new one.">&#9432;</span>
+          </label>
+          <div class="input-group">
+            <input type="text" id="env-uuid" class="form-input" readonly placeholder="Generating…">
+            <button type="button" class="btn btn-small btn-secondary" id="env-uuid-regen">Regenerate</button>
+          </div>
+          <div class="field-error" id="err-uuid"></div>
+        </div>
+        <div class="form-group flex-1 env-flags">
+          <label class="form-label">Library flags</label>
+          <label class="toggle-label" title="Ship this template as a MISP default (misp_default: true).">
+            <input type="checkbox" id="env-misp-default" checked>
+            <span>Ship as MISP default (<code>misp_default</code>)</span>
+            <span class="tooltip-trigger" data-tooltip="Sets misp_default:true — marks this as a template MISP ships/updates from the library by default. New library templates default to on (D9).">&#9432;</span>
+          </label>
+        </div>
+      </div>
+
+      <h3 class="et-subheading">Library metadata</h3>
+
+      <div class="form-group">
+        <label class="form-label" for="lib-compat-version">Compatible MISP version
+          <span class="tooltip-trigger" data-tooltip="Minimum MISP version this template targets, e.g. 2.5.0. Format: major.minor(.patch).">&#9432;</span>
+        </label>
+        <input type="text" id="lib-compat-version" class="form-input compat-input" placeholder="e.g. 2.5.0" autocomplete="off" spellcheck="false">
+        <div class="field-error" id="err-compat-version"></div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Authors
+          <span class="tooltip-trigger" data-tooltip="Who authored this template. Each author needs a name; contact (e.g. an email) is optional. The library review checklist expects at least one before publishing.">&#9432;</span>
+        </label>
+        <div id="authors-container"></div>
+        <button type="button" class="btn btn-small btn-secondary" id="add-author" style="margin-top:8px;">+ Add author</button>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="lib-tags-input">Tags
+          <span class="tooltip-trigger" data-tooltip="Free-text keywords describing the template (e.g. incident-response, phishing). Type a value and press Enter.">&#9432;</span>
+        </label>
+        <div class="tag-input-wrapper" id="lib-tags-wrapper">
+          <div class="tag-list" id="lib-tags-list"></div>
+          <input type="text" class="form-input tag-input" id="lib-tags-input" placeholder="Type and press Enter…">
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- Event defaults (task 5.x) -->
+  <section class="et-region et-event-defaults" id="event-defaults-region">
+    <div class="et-region-header"><h2>Event defaults</h2></div>
+    <div class="et-region-body et-envelope-body">
+      <p class="et-region-hint">Defaults applied to the event a user creates from this template.</p>
+
+      {% raw %}
+      <div class="form-group et-info-template-group">
+        <label class="form-label" for="ed-info-template">Info template
+          <span class="tooltip-trigger" data-tooltip="Default event title for events created from this template. Supports {{date}} (today), {{now}} (timestamp), {{user}} (creator) and {{field:<id>}} (value of an element, referenced by its id).">&#9432;</span>
+        </label>
+        <div class="et-info-toolbar" id="ed-info-toolbar"></div>
+        <textarea id="ed-info-template" class="form-input form-textarea et-info-textarea" rows="3" spellcheck="false"
+                  placeholder="e.g. Phishing report — {{date}} (reported by {{user}})"></textarea>
+        <div class="et-field-hint">Plain text plus optional {{date}}, {{now}}, {{user}} and {{field:&lt;id&gt;}} variables. A {{field:…}} reference must match an element id.</div>
+        <div class="field-error" id="err-info-template"></div>
+      </div>
+      {% endraw %}
+
+      <div class="form-row">
+        <div class="form-group flex-1">
+          <label class="form-label" for="ed-distribution">Distribution
+            <span class="tooltip-trigger" data-tooltip="Default distribution of the event created from this template.">&#9432;</span>
+          </label>
+          <select id="ed-distribution" class="form-select">
+            <option value="0">Your organisation only</option>
+            <option value="1">This community only</option>
+            <option value="2">Connected communities</option>
+            <option value="3">All communities</option>
+            <option value="4">Sharing group</option>
+          </select>
+        </div>
+        <div class="form-group flex-1" id="ed-sharing-group-group" style="display:none">
+          <label class="form-label" for="ed-sharing-group">Sharing group ID
+            <span class="tooltip-trigger" data-tooltip="The MISP sharing group id (instance-specific integer). Required when distribution is Sharing group.">&#9432;</span>
+          </label>
+          <input type="number" id="ed-sharing-group" class="form-input" min="1" placeholder="e.g. 3" autocomplete="off">
+          <div class="et-field-hint">Required when distribution is “Sharing group”.</div>
+          <div class="field-error" id="err-sharing-group"></div>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group flex-1">
+          <label class="form-label" for="ed-threat-level">Threat level
+            <span class="tooltip-trigger" data-tooltip="Default threat level of the created event. Optional.">&#9432;</span>
+          </label>
+          <select id="ed-threat-level" class="form-select">
+            <option value="">— unset —</option>
+            <option value="1">High</option>
+            <option value="2">Medium</option>
+            <option value="3">Low</option>
+            <option value="4">Undefined</option>
+          </select>
+        </div>
+        <div class="form-group flex-1">
+          <label class="form-label" for="ed-analysis">Analysis
+            <span class="tooltip-trigger" data-tooltip="Default analysis state of the created event. Optional.">&#9432;</span>
+          </label>
+          <select id="ed-analysis" class="form-select">
+            <option value="">— unset —</option>
+            <option value="0">Initial</option>
+            <option value="1">Ongoing</option>
+            <option value="2">Completed</option>
+          </select>
+        </div>
+      </div>
+
+      <h3 class="et-subheading">Default tags &amp; galaxies</h3>
+
+      <div class="form-group">
+        <label class="form-label" for="ed-tag-input">Default tags
+          <span class="tooltip-trigger" data-tooltip="Tags applied by default to events created from this template. Pick a taxonomy to autocomplete its machine tags, or type any tag. Mark a tag “locked” to stop the form user removing it.">&#9432;</span>
+        </label>
+        <div class="et-picker-add">
+          <select id="ed-tag-namespace" class="form-select et-picker-source" aria-label="Taxonomy to autocomplete from">
+            <option value="">— taxonomy —</option>
+          </select>
+          <input type="text" id="ed-tag-input" class="form-input et-picker-value" list="ed-tag-datalist"
+                 placeholder="tag, e.g. tlp:amber" autocomplete="off" spellcheck="false">
+          <datalist id="ed-tag-datalist"></datalist>
+          <button type="button" class="btn btn-small btn-secondary" id="ed-tag-add">Add</button>
+        </div>
+        <div id="ed-tags-list" class="et-locked-rows"></div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="ed-gc-input">Default galaxy clusters
+          <span class="tooltip-trigger" data-tooltip="Galaxy clusters attached by default to events created from this template. Choose a galaxy type, then pick or type a cluster value. Mark “locked” to stop the form user removing it.">&#9432;</span>
+        </label>
+        <div class="et-picker-add">
+          <select id="ed-gc-type" class="form-select et-picker-source" aria-label="Galaxy type">
+            <option value="">— galaxy type —</option>
+          </select>
+          <input type="text" id="ed-gc-input" class="form-input et-picker-value" list="ed-gc-datalist"
+                 placeholder="select a galaxy type first" autocomplete="off" spellcheck="false" disabled>
+          <datalist id="ed-gc-datalist"></datalist>
+          <button type="button" class="btn btn-small btn-secondary" id="ed-gc-add">Add</button>
+        </div>
+        <div id="ed-gc-list" class="et-locked-rows"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Builder workspace: palette | canvas | inspector -->
+  <div class="et-workspace">
+
+    <!-- Palette -->
+    <section class="et-region et-palette" id="palette-region">
+      <div class="et-region-header"><h2>Palette</h2></div>
+      <div class="et-region-body" id="palette-region-body"></div>
+    </section>
+
+    <!-- Canvas -->
+    <section class="et-region et-canvas" id="canvas-region">
+      <div class="et-region-header"><h2>Structure</h2></div>
+      <div class="et-region-body">
+        <div id="validation-summary" class="et-validation"></div>
+        <div id="canvas-region-body" class="et-canvas-mount"></div>
+      </div>
+    </section>
+
+    <!-- Inspector: properties (top) + preview (bottom) -->
+    <div class="et-inspector">
+      <section class="et-region" id="properties-region">
+        <div class="et-region-header"><h2>Properties</h2></div>
+        <div class="et-region-body" id="properties-region-body"></div>
+      </section>
+      <section class="et-region" id="preview-region">
+        <div class="et-region-header">
+          <h2>Preview</h2>
+          <div class="et-preview-tabs" id="preview-tabs" role="tablist">
+            <button type="button" class="et-tab active" data-preview-tab="json"
+                    role="tab" aria-selected="true">JSON</button>
+            <button type="button" class="et-tab" data-preview-tab="form"
+                    role="tab" aria-selected="false">Form</button>
+          </div>
+        </div>
+        <div class="et-region-body et-preview-body">
+          <div class="et-preview-status et-status-pending" id="preview-status"></div>
+
+          <div class="et-preview-panel" data-preview-panel="json">
+            <div class="et-json-toolbar">
+              <span class="et-json-meta" id="preview-json-meta"></span>
+              <button type="button" class="btn btn-small btn-secondary" id="preview-json-copy"
+                      title="Copy the canonical JSON to the clipboard">Copy</button>
+            </div>
+            <pre class="et-json-preview" id="preview-json" tabindex="0"></pre>
+          </div>
+
+          <div class="et-preview-panel" data-preview-panel="form" hidden>
+            <div id="preview-form" class="etf-form"></div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/common.js') }}"></script>
+<script src="{{ url_for('static', filename='js/reference.js') }}"></script>
+<script src="{{ url_for('static', filename='js/elements.js') }}"></script>
+<script src="{{ url_for('static', filename='js/event-defaults.js') }}"></script>
+<script src="{{ url_for('static', filename='js/preview.js') }}"></script>
+<script src="{{ url_for('static', filename='js/editor.js') }}"></script>
+{% endblock %}

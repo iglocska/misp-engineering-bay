@@ -53,6 +53,26 @@ def test_get_template_not_found(client):
     assert "error" in res.get_json()
 
 
+def test_list_templates_exposes_directory_identifier(client):
+    """Listings must include `dir` so the UI can fetch templates whose
+    on-disk directory name differs from their JSON `name` field
+    (e.g. dir `persnona` / name `Deception PersNOna`)."""
+    res = client.get("/api/templates")
+    data = res.get_json()
+    persnona = next((t for t in data if t.get("dir") == "persnona"), None)
+    assert persnona is not None, "persnona template missing from listing"
+    assert persnona["name"] == "Deception PersNOna"
+
+
+def test_get_template_with_mismatched_dir_and_name(client):
+    """Fetching by directory name must work even when JSON name differs."""
+    res = client.get("/api/templates/persnona")
+    assert res.status_code == 200
+    data = res.get_json()
+    assert data["name"] == "Deception PersNOna"
+    assert "attributes" in data
+
+
 def test_create_template(client, sample_template):
     res = client.post(
         "/api/templates",

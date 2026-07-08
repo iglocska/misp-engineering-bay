@@ -71,7 +71,7 @@ async function checkCloneParam() {
         if (res.ok) {
             const tpl = await res.json();
             loadTemplateIntoEditor(tpl, true);
-            showToast(`Cloned template "${cloneName}"`);
+            showToast(`Cloned template "${tpl.name || cloneName}"`);
         }
     }
 }
@@ -654,7 +654,7 @@ function renderLoadTemplates(templates) {
         return;
     }
     list.innerHTML = templates.map(t => `
-        <div class="load-template-row" data-name="${escapeHtml(t.name)}">
+        <div class="load-template-row" data-dir="${escapeHtml(t.dir || t.name)}" data-name="${escapeHtml(t.name)}">
             <span class="load-template-name">${escapeHtml(t.name)}</span>
             <span class="load-template-desc">${escapeHtml(t.description || '')}</span>
             <span class="load-template-meta">${escapeHtml(t['meta-category'])} | ${t.attribute_count} attrs | v${t.version}</span>
@@ -662,12 +662,12 @@ function renderLoadTemplates(templates) {
     `).join('');
 
     list.querySelectorAll('.load-template-row').forEach(row => {
-        row.addEventListener('click', () => doLoadExisting(row.dataset.name));
+        row.addEventListener('click', () => doLoadExisting(row.dataset.dir, row.dataset.name));
     });
 }
 
-async function doLoadExisting(name) {
-    const res = await fetch(`/api/templates/${encodeURIComponent(name)}`);
+async function doLoadExisting(dir, displayName) {
+    const res = await fetch(`/api/templates/${encodeURIComponent(dir)}`);
     if (!res.ok) {
         showToast('Failed to load template', 'error');
         return;
@@ -677,7 +677,8 @@ async function doLoadExisting(name) {
     const isClone = mode === 'clone';
     loadTemplateIntoEditor(tpl, isClone);
     closeLoadModal();
-    showToast(isClone ? `Cloned "${name}" as new template` : `Loaded "${name}" for editing`);
+    const label = displayName || dir;
+    showToast(isClone ? `Cloned "${label}" as new template` : `Loaded "${label}" for editing`);
 }
 
 function closeLoadModal() {
