@@ -96,19 +96,20 @@ function renderTemplates(templates) {
                 <span class="meta-info">v${t.version}</span>
             </div>
             <div class="template-actions">
-                <button class="btn btn-small btn-secondary" onclick="viewJson('${escapeHtml(t.name)}')">View JSON</button>
-                <button class="btn btn-small btn-primary" onclick="cloneTemplate('${escapeHtml(t.name)}')">Clone to Editor</button>
+                <button class="btn btn-small btn-secondary" onclick="viewJson('${escapeHtml(t.dir)}', '${escapeHtml(t.name)}')">View JSON</button>
+                <button class="btn btn-small btn-primary" onclick="cloneTemplate('${escapeHtml(t.dir)}')">Clone to Editor</button>
             </div>
         </div>
     `).join('');
 }
 
-async function viewJson(name) {
-    const res = await fetch(`/api/templates/${encodeURIComponent(name)}`);
+async function viewJson(dir, displayName) {
+    const res = await fetch(`/api/templates/${encodeURIComponent(dir)}`);
     const data = await res.json();
     currentModalTemplate = data;
+    currentModalTemplate._dir = dir;
     const clean = Object.fromEntries(Object.entries(data).filter(([k]) => !k.startsWith('_')));
-    document.getElementById('modal-title').textContent = name;
+    document.getElementById('modal-title').textContent = displayName || dir;
     document.getElementById('modal-json').textContent = JSON.stringify(clean, null, 2);
     document.getElementById('json-modal').hidden = false;
 }
@@ -125,7 +126,7 @@ function cloneTemplate(name) {
 
 function cloneFromModal() {
     if (currentModalTemplate) {
-        cloneTemplate(currentModalTemplate.name);
+        cloneTemplate(currentModalTemplate._dir || currentModalTemplate.name);
     }
 }
 

@@ -48,19 +48,23 @@ def list_all_templates() -> list[dict]:
     """List all templates from both sources."""
     templates = list_submodule_templates()
     user = list_user_templates()
-    # User templates override submodule ones with same name in the listing
-    submodule_names = {t["name"] for t in templates}
+    # Dedup by directory name (the filesystem identifier), not display name.
+    submodule_dirs = {t["dir"] for t in templates}
     for t in user:
-        if t["name"] in submodule_names:
-            # Replace the submodule entry
-            templates = [s for s in templates if s["name"] != t["name"]] + [t]
+        if t["dir"] in submodule_dirs:
+            templates = [s for s in templates if s["dir"] != t["dir"]] + [t]
         else:
             templates.append(t)
-    templates.sort(key=lambda t: t["name"])
+    templates.sort(key=lambda t: t["name"].lower())
     return templates
 
 
 def _scan_directory(directory: str, source: str) -> list[dict]:
+    # `dir` is the on-disk directory name and the canonical identifier used
+    # for all filesystem lookups and API URLs. `name` is the human-readable
+    # label from the JSON. For a handful of submodule templates the two
+    # differ (e.g. dir "persnona" / name "Deception PersNOna"), so the UI
+    # must use `dir` when calling /api/templates/<...>.
     results = []
     if not os.path.isdir(directory):
         return results
@@ -71,6 +75,7 @@ def _scan_directory(directory: str, source: str) -> list[dict]:
                 with open(defn_path) as f:
                     data = json.load(f)
                 results.append({
+                    "dir": entry,
                     "name": data.get("name", entry),
                     "description": data.get("description", ""),
                     "meta-category": data.get("meta-category", ""),
