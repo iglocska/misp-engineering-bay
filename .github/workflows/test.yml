@@ -66,3 +66,36 @@ jobs:
           if failures:
               sys.exit(1)
           "
+
+  test-event-template-editor:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        working-directory: misp-event-template-editor
+        run: |
+          python -m venv venv
+          ./venv/bin/pip install --upgrade pip
+          ./venv/bin/pip install -r requirements.txt
+
+      - name: Run tests
+        working-directory: misp-event-template-editor
+        # The pytest suite includes test_all_library_templates_validate_clean,
+        # which validates every bundled misp-event-templates library template
+        # against the schema + semantic gate — the equivalent of the object
+        # tool's "Validate all existing templates" step, so no separate
+        # validation step is needed here.
+        run: ./venv/bin/python -m pytest tests/ -v --tb=short
