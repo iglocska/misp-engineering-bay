@@ -11,12 +11,32 @@ import jsonschema
 import config
 from describe_types import DescribeTypes, get_describe_types
 
-# Valid meta-categories from schema_objects.json
-META_CATEGORIES = [
-    "file", "network", "financial", "marine", "misc", "mobile",
+# Valid meta-categories are sourced from the authoritative misp-objects
+# schema_objects.json at import time so this list can never drift from
+# upstream (previously it was hand-copied and fell behind when upstream
+# added new categories such as "transport"). The list below is only a
+# fallback for when the misp-objects submodule isn't checked out.
+_META_CATEGORIES_FALLBACK = [
+    "file", "network", "financial", "marine", "transport", "misc", "mobile",
     "internal", "vulnerability", "climate", "iot", "health",
     "followthemoney", "detection",
 ]
+
+
+def _load_meta_categories() -> list[str]:
+    """Read the meta-category enum from the official schema, if available."""
+    try:
+        with open(config.SCHEMA_OBJECTS_PATH) as f:
+            schema = json.load(f)
+        enum = schema["properties"]["meta-category"]["enum"]
+        if isinstance(enum, list) and enum:
+            return enum
+    except (OSError, KeyError, ValueError, TypeError):
+        pass
+    return _META_CATEGORIES_FALLBACK
+
+
+META_CATEGORIES = _load_meta_categories()
 
 # Template names: alphanumeric and hyphens only (case-insensitive).
 NAME_VALID_RE = re.compile(r"^[a-zA-Z0-9]+(-[a-zA-Z0-9]+)*$")

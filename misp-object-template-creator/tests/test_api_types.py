@@ -23,7 +23,14 @@ def test_get_meta_categories(client):
     assert "file" in data
     assert "network" in data
     assert "misc" in data
-    assert len(data) == 13
+    # "transport" was added upstream; the list must track schema_objects.json
+    # rather than a hand-maintained copy, so assert against the schema enum.
+    assert "transport" in data
+    import json
+    import config
+    with open(config.SCHEMA_OBJECTS_PATH) as f:
+        schema_enum = json.load(f)["properties"]["meta-category"]["enum"]
+    assert data == schema_enum
 
 
 def test_get_types(client):
