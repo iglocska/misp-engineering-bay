@@ -60,6 +60,22 @@ Key features:
 
 See the [Event Template Editor README](misp-event-template-editor/README.md) for installation and usage instructions.
 
+### MISP Guard Rule Builder
+
+**Path:** [`misp-guard-rule-builder/`](misp-guard-rule-builder/)
+
+A Python/Flask web application for creating, validating, and exporting `misp-guard` `config.json` rule files. It provides guided editing for allowlists, compartment reachability rules, instance-level taxonomy policy, and block lists for MISP distributions, sharing groups, attributes, categories, and object types.
+
+Key features:
+- Guided allowlist editing for URLs and domains
+- Compartment reachability builder for `compartments_rules.can_reach`
+- Instance editor covering network settings, compartment membership, affiliation, taxonomy rules, and block lists
+- Live JSON preview with API-backed validation
+- Export as `misp-guard-config.json`
+- Public/private mode — public for browser export, private for server-side persistence
+
+See the [MISP Guard Rule Builder README](misp-guard-rule-builder/README.md) for installation and usage instructions.
+
 ## Repository Structure
 
 ```
@@ -67,6 +83,7 @@ misp-engineering-bay/
 ├── misp-object-template-creator/   # Object template authoring tool
 ├── misp-galaxy-editor/             # Galaxy definition and cluster editor
 ├── misp-event-template-editor/     # Event template authoring tool
+├── misp-guard-rule-builder/        # misp-guard config rule authoring tool
 ├── misp-objects/                   # MISP objects library (git submodule)
 ├── misp-galaxy/                    # MISP galaxy library (git submodule)
 ├── misp-event-templates/           # MISP event templates library (git submodule)
