@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="editor-page" data-mode="{{ mode }}">
+  <div class="editor-layout">
+    <div class="editor-form">
+      <div class="form-section">
+        <h3 class="section-title">Allowlist</h3>
+        <p class="section-hint">Define URLs and domains that MISP Guard should always allow.</p>
+        <label class="form-label">URLs (one per line)</label><textarea id="allow-urls" class="form-input form-textarea"></textarea>
+        <label class="form-label">Domains (one per line)</label><textarea id="allow-domains" class="form-input form-textarea"></textarea>
+      </div>
+      <div class="form-section">
+        <div class="section-header"><h3 class="section-title">Compartments</h3><button class="btn btn-small btn-primary" onclick="addCompartment()">+ Add Compartment</button></div>
+        <p class="section-hint">Each compartment lists the destination compartments it can reach.</p>
+        <div id="compartments"></div>
+      </div>
+      <div class="form-section">
+        <div class="section-header"><h3 class="section-title">Instances</h3><button class="btn btn-small btn-primary" onclick="addInstance()">+ Add Instance</button></div>
+        <p class="section-hint">Set per-instance compartment membership and blocking rules.</p>
+        <div id="instances"></div>
+      </div>
+      <div class="form-section actions-section">
+        <button class="btn btn-primary btn-large" onclick="downloadConfig()">Export config.json</button>
+        <button class="btn btn-large" onclick="copyJson()">Copy JSON</button>
+        <button class="btn btn-secondary btn-large" onclick="loadSample()">Load Sample</button>
+        <button class="btn btn-large btn-persist" onclick="persistConfig()" {% if mode != 'private' %}style="display:none"{% endif %}>Persist</button>
+      </div>
+    </div>
+    <div class="editor-preview">
+      <div class="preview-header"><h2>Preview</h2><span class="validation-status" id="status">Not validated</span></div>
+      <pre class="json-preview" id="preview"></pre>
+      <div id="validation-messages" class="validation-messages"></div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/editor.js') }}"></script>{% endblock %}
